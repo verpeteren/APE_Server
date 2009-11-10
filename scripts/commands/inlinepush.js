@@ -6,7 +6,11 @@ Ape.registerCmd("inlinepush", false, function(params, infos) {
 			if (!$defined(chan)) return ["401", "UNKNOWN_CHANNEL"];
 			
 			chan.pipe.sendRaw(params.raw, params.data);
-			
+
+			infos.client.write('HTTP/1.0 200 OK\r\n\r\n');
+			infos.client.write('OK');
+			infos.client.close();
+
 		} else {
 			return 0;
 		}
