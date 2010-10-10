@@ -54,9 +54,13 @@
 
 namespace nanojit
 {
-#define NJ_MAX_STACK_ENTRY              256
+#define NJ_MAX_STACK_ENTRY              4096
 #define NJ_ALIGN_STACK                  16
+
 #define NJ_JTBL_SUPPORTED               1
+#define NJ_EXPANDED_LOADSTORE_SUPPORTED 0
+#define NJ_F2I_SUPPORTED                0
+#define NJ_SOFTFLOAT_SUPPORTED          0
 
     enum ConditionRegister {
         CR0 = 0,
@@ -83,86 +87,93 @@ namespace nanojit
         BO_false = 4, // branch if false
     };
 
-    enum Register {
+    typedef uint32_t Register;
+    static const Register
         // general purpose 32bit regs
-        R0  = 0, // scratch or the value 0, excluded from regalloc
-        SP  = 1, // stack pointer, excluded from regalloc
-        R2  = 2, // scratch on MacOSX, rtoc pointer elsewhere
-        R3  = 3, // this, return value, MSW of int64 return
-        R4  = 4, // param, LSW of int64 return
-        R5  = 5, // param
-        R6  = 6, // param
-        R7  = 7, // param
-        R8  = 8, // param
-        R9  = 9, // param
-        R10 = 10, // param
-        R11 = 11, // scratch in leaf funcs, outgoing arg ptr otherwise
-        R12 = 12, // scratch
-        R13 = 13, // ppc32: saved, ppc64: thread-specific storage
-        R14 = 14, // saved
-        R15 = 15,
-        R16 = 16,
-        R17 = 17,
-        R18 = 18,
-        R19 = 19,
-        R20 = 20,
-        R21 = 21,
-        R22 = 22,
-        R23 = 23,
-        R24 = 24,
-        R25 = 25,
-        R26 = 26,
-        R27 = 27,
-        R28 = 28,
-        R29 = 29,
-        R30 = 30,
-        R31 = 31, // excluded from regalloc since we use it as FP
+        R0   = { 0 },   // scratch or the value 0, excluded from regalloc
+        SP   = { 1 },   // stack pointer, excluded from regalloc
+        R2   = { 2 },   // scratch on MacOSX, rtoc pointer elsewhere
+        R3   = { 3 },   // this, return value, MSW of int64 return
+        R4   = { 4 },   // param, LSW of int64 return
+        R5   = { 5 },   // param
+        R6   = { 6 },   // param
+        R7   = { 7 },   // param
+        R8   = { 8 },   // param
+        R9   = { 9 },   // param
+        R10  = { 10 },  // param
+        R11  = { 11 },  // scratch in leaf funcs, outgoing arg ptr otherwise
+        R12  = { 12 },  // scratch
+        R13  = { 13 },  // ppc32: saved, ppc64: thread-specific storage
+        R14  = { 14 },  // saved
+        R15  = { 15 },
+        R16  = { 16 },
+        R17  = { 17 },
+        R18  = { 18 },
+        R19  = { 19 },
+        R20  = { 20 },
+        R21  = { 21 },
+        R22  = { 22 },
+        R23  = { 23 },
+        R24  = { 24 },
+        R25  = { 25 },
+        R26  = { 26 },
+        R27  = { 27 },
+        R28  = { 28 },
+        R29  = { 29 },
+        R30  = { 30 },
+        R31  = { 31 },   // excluded from regalloc since we use it as FP
         FP  = R31,
 
         // FP regs
-        F0  = 32, // scratch, excluded from reg alloc
-        F1  = 33, // param, double return value
-        F2  = 34, // param
-        F3  = 35, // param
-        F4  = 36, // param
-        F5  = 37, // param
-        F6  = 38, // param
-        F7  = 39, // param
-        F8  = 40, // param
-        F9  = 41, // param
-        F10 = 42, // param
-        F11 = 43, // param
-        F12 = 44, // param
-        F13 = 45, // param
-        F14 = 46, // F14-31 saved
-        F15 = 47,
-        F16 = 48,
-        F17 = 49,
-        F18 = 50,
-        F19 = 51,
-        F20 = 52,
-        F21 = 53,
-        F22 = 54,
-        F23 = 55,
-        F24 = 56,
-        F25 = 57,
-        F26 = 58,
-        F27 = 59,
-        F28 = 60,
-        F29 = 61,
-        F30 = 62,
-        F31 = 63,
+        F0  = { 32 },   // scratch, excluded from reg alloc
+        F1  = { 33 },   // param, double return value
+        F2  = { 34 },   // param
+        F3  = { 35 },   // param
+        F4  = { 36 },   // param
+        F5  = { 37 },   // param
+        F6  = { 38 },   // param
+        F7  = { 39 },   // param
+        F8  = { 40 },   // param
+        F9  = { 41 },   // param
+        F10 = { 42 },   // param
+        F11 = { 43 },   // param
+        F12 = { 44 },   // param
+        F13 = { 45 },   // param
+        F14 = { 46 },   // F14-31 saved
+        F15 = { 47 },
+        F16 = { 48 },
+        F17 = { 49 },
+        F18 = { 50 },
+        F19 = { 51 },
+        F20 = { 52 },
+        F21 = { 53 },
+        F22 = { 54 },
+        F23 = { 55 },
+        F24 = { 56 },
+        F25 = { 57 },
+        F26 = { 58 },
+        F27 = { 59 },
+        F28 = { 60 },
+        F29 = { 61 },
+        F30 = { 62 },
+        F31 = { 63 },
 
         // special purpose registers (SPR)
-        Rxer = 1,
-        Rlr  = 8,
-        Rctr = 9,
+        Rxer = { 1 },
+        Rlr  = { 8 },
+        Rctr = { 9 },
 
-        UnknownReg = 127,
-        FirstReg = R0,
-        LastReg = F31
-    };
+        deprecated_UnknownReg = { 127 };    // XXX: remove eventually, see bug 538924
 
+    static const uint32_t FirstRegNum = R0;
+    static const uint32_t LastRegNum = F31;
+}
+
+#define NJ_USE_UINT32_REGISTER 1
+#include "NativeCommon.h"
+
+namespace nanojit
+{
     enum PpcOpcode {
         // opcodes
         PPC_add     = 0x7C000214, // add
@@ -191,10 +202,13 @@ namespace nanojit
         PPC_fneg    = 0xFC000050, // floating negate
         PPC_fsub    = 0xFC000028, // floating subtract (double precision)
         PPC_lbz     = 0x88000000, // load byte and zero
+        PPC_lbzx    = 0x7C0000AE, // load byte and zero indexed
         PPC_ld      = 0xE8000000, // load doubleword
         PPC_ldx     = 0x7C00002A, // load doubleword indexed
         PPC_lfd     = 0xC8000000, // load floating point double
         PPC_lfdx    = 0x7C0004AE, // load floating-point double indexed
+        PPC_lhz     = 0xA0000000, // load halfword and zero
+        PPC_lhzx    = 0x7C00022E, // load halfword and zero indexed
         PPC_lwz     = 0x80000000, // load word and zero
         PPC_lwzx    = 0x7C00002E, // load word and zero indexed
         PPC_mfcr    = 0x7C000026, // move from condition register
@@ -219,6 +233,8 @@ namespace nanojit
         PPC_srawi   = 0x7C000670, // shift right algebraic word immediate
         PPC_srd     = 0x7C000436, // shift right doubleword (zero ext)
         PPC_srw     = 0x7C000430, // shift right word (zero ext)
+        PPC_stb     = 0x98000000, // store byte
+        PPC_stbx    = 0x7C0001AE, // store byte indexed
         PPC_std     = 0xF8000000, // store doubleword
         PPC_stdu    = 0xF8000001, // store doubleword with update
         PPC_stdux   = 0x7C00016A, // store doubleword with update indexed
@@ -254,8 +270,8 @@ namespace nanojit
     static const int NumSavedRegs = 18; // R13-R30
 #endif
 
-    static inline bool isValidDisplacement(LOpcode, int32_t) {
-        return true;
+    static inline bool IsGpReg(Register r) {
+        return r <= R31;
     }
     static inline bool IsFpReg(Register r) {
         return r >= F0;
@@ -280,7 +296,7 @@ namespace nanojit
         void nativePageSetup();                                             \
         void br(NIns *addr, int link);                                      \
         void br_far(NIns *addr, int link);                                  \
-        void asm_regarg(ArgSize, LIns*, Register);                          \
+        void asm_regarg(ArgType, LIns*, Register);                          \
         void asm_li(Register r, int32_t imm);                               \
         void asm_li32(Register r, int32_t imm);                             \
         void asm_li64(Register r, uint64_t imm);                            \
@@ -430,7 +446,7 @@ namespace nanojit
     #define MFCTR(r) MFSPR(r, ctr)
 
     #define MEMd(op, r, d, a) do {\
-        NanoAssert(isS16(d) && (d&3)==0);\
+        NanoAssert(isS16(d));\
         EMIT1(PPC_##op | GPR(r)<<21 | GPR(a)<<16 | uint16_t(d), "%s %s,%d(%s)", #op, gpn(r), int16_t(d), gpn(a));\
         } while(0) /* no addr */
 
@@ -448,16 +464,25 @@ namespace nanojit
                 "%s %s,%s,%s", #op, gpn(rs), gpn(ra), gpn(rb))
 
     #define LBZ(r,  d, b) MEMd(lbz,  r, d, b)
+    #define LHZ(r,  d, b) MEMd(lhz,  r, d, b)
     #define LWZ(r,  d, b) MEMd(lwz,  r, d, b)
     #define LD(r,   d, b) MEMd(ld,   r, d, b)
+    #define LBZX(r, a, b) MEMx(lbzx, r, a, b)
+    #define LHZX(r, a, b) MEMx(lhzx, r, a, b)
     #define LWZX(r, a, b) MEMx(lwzx, r, a, b)
     #define LDX(r,  a, b) MEMx(ldx,  r, a, b)
 
+    // store word (32-bit integer)
     #define STW(r,  d, b)     MEMd(stw,    r, d, b)
     #define STWU(r, d, b)     MEMd(stwu,   r, d, b)
     #define STWX(s, a, b)     MEMx(stwx,   s, a, b)
     #define STWUX(s, a, b)    MEMux(stwux, s, a, b)
 
+    // store byte
+    #define STB(r,  d, b)     MEMd(stb,    r, d, b)
+    #define STBX(s, a, b)     MEMx(stbx,   s, a, b)
+
+    // store double (64-bit float)
     #define STD(r,  d, b)     MEMd(std,    r, d, b)
     #define STDU(r, d, b)     MEMd(stdu,   r, d, b)
     #define STDX(s, a, b)     MEMx(stdx,   s, a, b)

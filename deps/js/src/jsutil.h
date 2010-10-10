@@ -44,6 +44,7 @@
 #ifndef jsutil_h___
 #define jsutil_h___
 
+#include "jstypes.h"
 #include <stdlib.h>
 
 JS_BEGIN_EXTERN_C
@@ -66,11 +67,21 @@ JS_Assert(const char *s, const char *file, JSIntn ln);
 #define JS_NOT_REACHED(reason)                                                \
     JS_Assert(reason, __FILE__, __LINE__)
 
+#define JS_ALWAYS_TRUE(expr) JS_ASSERT(expr)
+
+# ifdef JS_THREADSAFE
+# define JS_THREADSAFE_ASSERT(expr) JS_ASSERT(expr) 
+# else
+# define JS_THREADSAFE_ASSERT(expr) ((void) 0)
+# endif
+
 #else
 
 #define JS_ASSERT(expr)         ((void) 0)
 #define JS_ASSERT_IF(cond,expr) ((void) 0)
 #define JS_NOT_REACHED(reason)
+#define JS_ALWAYS_TRUE(expr)    ((void) (expr))
+#define JS_THREADSAFE_ASSERT(expr) ((void) 0)
 
 #endif /* defined(DEBUG) */
 
@@ -108,13 +119,12 @@ JS_Assert(const char *s, const char *file, JSIntn ln);
  */
 extern JS_PUBLIC_API(void) JS_Abort(void);
 
-#if 0
+#ifdef DEBUG
 # define JS_BASIC_STATS 1
-# define JS_SCOPE_DEPTH_METER 1
 #endif
 
-#if defined DEBUG && !defined JS_BASIC_STATS
-# define JS_BASIC_STATS 1
+#ifdef DEBUG_brendan
+# define JS_SCOPE_DEPTH_METER 1
 #endif
 
 #ifdef JS_BASIC_STATS
@@ -180,27 +190,28 @@ extern JS_FRIEND_API(void)
 JS_DumpBacktrace(JSCallsite *trace);
 #endif
 
+#if defined JS_USE_CUSTOM_ALLOCATOR
+
+#include "jscustomallocator.h"
+
+#else
+
 static JS_INLINE void* js_malloc(size_t bytes) {
-    if (bytes < sizeof(void*)) /* for asyncFree */
-        bytes = sizeof(void*);
     return malloc(bytes);
 }
 
 static JS_INLINE void* js_calloc(size_t bytes) {
-    if (bytes < sizeof(void*)) /* for asyncFree */
-        bytes = sizeof(void*);
     return calloc(bytes, 1);
 }
 
 static JS_INLINE void* js_realloc(void* p, size_t bytes) {
-    if (bytes < sizeof(void*)) /* for asyncFree */
-        bytes = sizeof(void*);
     return realloc(p, bytes);
 }
 
 static JS_INLINE void js_free(void* p) {
     free(p);
 }
+#endif/* JS_USE_CUSTOM_ALLOCATOR */
 
 JS_END_EXTERN_C
 
@@ -252,7 +263,7 @@ public:
         *mStatementDone = true;
     }
 
-    void SetStatementDone(bool *aStatementDone) {
+    void setStatementDone(bool *aStatementDone) {
         mStatementDone = aStatementDone;
     }
 };
@@ -280,7 +291,7 @@ public:
          * temporary, but we really intend it as non-const
          */
         const_cast<JSGuardObjectNotifier&>(aNotifier).
-            SetStatementDone(&mStatementDone);
+            setStatementDone(&mStatementDone);
     }
 };
 
@@ -298,6 +309,41 @@ public:
 #define JS_GUARD_OBJECT_NOTIFIER_INIT JS_BEGIN_MACRO JS_END_MACRO
 
 #endif /* !defined(DEBUG) */
+
+namespace js {
+
+template <class T>
+JS_ALWAYS_INLINE static void
+PodZero(T *t)
+{
+    memset(t, 0, sizeof(T));
+}
+
+template <class T>
+JS_ALWAYS_INLINE static void
+PodZero(T *t, size_t nelem)
+{
+    memset(t, 0, nelem * sizeof(T));
+}
+
+/*
+ * Arrays implicitly convert to pointers to their first element, which is
+ * dangerous when combined with the above PodZero definitions. Adding an
+ * overload for arrays is ambiguous, so we need another identifier. The
+ * ambiguous overload is left to catch mistaken uses of PodZero; if you get a
+ * compile error involving PodZero and array types, use PodArrayZero instead.
+ */
+template <class T, size_t N> static void PodZero(T (&)[N]);          /* undefined */
+template <class T, size_t N> static void PodZero(T (&)[N], size_t);  /* undefined */
+
+template <class T, size_t N>
+JS_ALWAYS_INLINE static void
+PodArrayZero(T (&t)[N])
+{
+    memset(t, 0, N * sizeof(T));
+}
+
+} /* namespace js */
 
 #endif /* defined(__cplusplus) */
 

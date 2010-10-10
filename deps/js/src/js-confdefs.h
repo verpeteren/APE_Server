@@ -40,10 +40,10 @@
 #define HAVE_LCHOWN 1
 #define HAVE_LIBDL 1
 #define HAVE_LIBM 1
+#define HAVE_LOCALECONV 1
 #define HAVE_LOCALTIME_R 1
 #define HAVE_LSTAT64 1
 #define HAVE_MALLOC_H 1
-#define HAVE_MBRTOWC 1
 #define HAVE_MEMMOVE 1
 #define HAVE_MEMORY_H 1
 #define HAVE_NL_TYPES_H 1
@@ -54,6 +54,7 @@
 #define HAVE_SETLOCALE 1
 #define HAVE_SIGINFO_T 1
 #define HAVE_SNPRINTF 1
+#define HAVE_SSIZE_T 1
 #define HAVE_STAT64 1
 #define HAVE_STATVFS 1
 #define HAVE_STATVFS64 1
@@ -74,14 +75,19 @@
 #define HAVE_VA_COPY 1
 #define HAVE_VISIBILITY_ATTRIBUTE 1
 #define HAVE_VISIBILITY_HIDDEN_ATTRIBUTE 1
-#define HAVE_WCRTOMB 1
+#define HAVE_X11_XKBLIB_H 1
 #define HAVE__UNWIND_BACKTRACE 1
 #define HAVE___CXA_DEMANGLE 1
 #define JS_ALIGN_OF_POINTER 4
 #define JS_BITS_PER_WORD_LOG2 5
 #define JS_BYTES_PER_DOUBLE 8
 #define JS_BYTES_PER_WORD 4
+#define JS_CPU_X86 1
 #define JS_HAVE_STDINT_H 1
+#define JS_METHODJIT 1
+#define JS_MONOIC 1
+#define JS_NUNBOX32 1
+#define JS_POLYIC 1
 #define JS_TRACER 1
 #define MOZ_DLL_SUFFIX ".so"
 #define NEED_CPP_UNUSED_IMPLEMENTATIONS 1
@@ -90,7 +96,6 @@
 #define UNIX_ASYNC_DNS 1
 #define VA_COPY va_copy
 #define XP_UNIX 1
-#define X_DISPLAY_MISSING 1
 #define _REENTRANT 1
 
 #endif /* _JS_CONFDEFS_H_ */

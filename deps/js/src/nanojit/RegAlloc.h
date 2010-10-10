@@ -44,11 +44,6 @@
 
 namespace nanojit
 {
-    inline RegisterMask rmask(Register r)
-    {
-        return RegisterMask(1) << r;
-    }
-
     class RegAlloc
     {
     public:
@@ -62,9 +57,9 @@ namespace nanojit
             VMPI_memset(this, 0, sizeof(*this));
         }
 
-        bool isFree(Register r)
+        bool isFree(Register r) const
         {
-            NanoAssert(r != UnknownReg);
+            NanoAssert(r != deprecated_UnknownReg);
             return (free & rmask(r)) != 0;
         }
 
@@ -84,50 +79,54 @@ namespace nanojit
         {
             //  Count++;
             NanoAssert(v);
-            NanoAssert(r != UnknownReg);
-            NanoAssert(active[r] == NULL);
-            active[r] = v;
+            NanoAssert(r != deprecated_UnknownReg);
+            NanoAssert(active[REGNUM(r)] == NULL);
+            active[REGNUM(r)] = v;
             useActive(r);
         }
 
         void useActive(Register r)
         {
-            NanoAssert(r != UnknownReg);
-            NanoAssert(active[r] != NULL);
-            usepri[r] = priority++;
+            NanoAssert(r != deprecated_UnknownReg);
+            NanoAssert(active[REGNUM(r)] != NULL);
+            usepri[REGNUM(r)] = priority++;
         }
 
         void removeActive(Register r)
         {
             //registerReleaseCount++;
-            NanoAssert(r != UnknownReg);
-            NanoAssert(active[r] != NULL);
+            NanoAssert(r != deprecated_UnknownReg);
+            NanoAssert(active[REGNUM(r)] != NULL);
 
             // remove the given register from the active list
-            active[r] = NULL;
+            active[REGNUM(r)] = NULL;
         }
 
         void retire(Register r)
         {
-            NanoAssert(r != UnknownReg);
-            NanoAssert(active[r] != NULL);
-            active[r] = NULL;
+            NanoAssert(r != deprecated_UnknownReg);
+            NanoAssert(active[REGNUM(r)] != NULL);
+            active[REGNUM(r)] = NULL;
             free |= rmask(r);
         }
 
         int32_t getPriority(Register r) {
-            NanoAssert(r != UnknownReg && active[r]);
-            return usepri[r];
+            NanoAssert(r != deprecated_UnknownReg && active[REGNUM(r)]);
+            return usepri[REGNUM(r)];
         }
 
-        LIns* getActive(Register r) {
-            NanoAssert(r != UnknownReg);
-            return active[r];
+        LIns* getActive(Register r) const {
+            NanoAssert(r != deprecated_UnknownReg);
+            return active[REGNUM(r)];
         }
 
-        debug_only( uint32_t    countActive(); )
-        debug_only( bool        isConsistent(Register r, LIns* v); )
-        debug_only( RegisterMask managed; )     // the registers managed by the register allocator
+        // Return a mask containing the active registers.  For each register
+        // in this set, getActive(register) will be a nonzero LIns pointer.
+        RegisterMask activeMask() const {
+            return ~free & managed;
+        }
+
+        debug_only( bool        isConsistent(Register r, LIns* v) const; )
 
         // Some basics:
         //
@@ -140,7 +139,7 @@ namespace nanojit
         //   and thus available for use.  At the start of register
         //   allocation most registers are free;  those that are not
         //   aren't available for general use, e.g. the stack pointer and
-        //   frame pointer registers.  
+        //   frame pointer registers.
         //
         // - 'managed' is exactly this list of initially free registers,
         //   ie. the registers managed by the register allocator.
@@ -166,20 +165,47 @@ namespace nanojit
         //   * An LIns can appear at most once in 'active'.
         //
         //   * An LIns named by 'active[R]' must have an in-use
-        //     reservation that names R.  
+        //     reservation that names R.
         //
         //   * And vice versa:  an LIns with an in-use reservation that
-        //     names R must be named by 'active[R]'.  
+        //     names R must be named by 'active[R]'.
         //
-        //   * If an LIns's reservation names 'UnknownReg' then LIns
+        //   * If an LIns's reservation names 'deprecated_UnknownReg' then LIns
         //     should not be in 'active'.
         //
-        LIns*           active[LastReg + 1];    // active[r] = LIns that defines r
-        int32_t         usepri[LastReg + 1];    // used priority. lower = more likely to spill.
-        RegisterMask    free;
+        LIns*           active[LastRegNum + 1]; // active[REGNUM(r)] = LIns that defines r
+        int32_t         usepri[LastRegNum + 1]; // used priority. lower = more likely to spill.
+        RegisterMask    free;       // Registers currently free.
+        RegisterMask    managed;    // Registers under management (invariant).
         int32_t         priority;
 
         DECLARE_PLATFORM_REGALLOC()
     };
+
+    // Return the lowest numbered Register in mask.
+    inline Register lsReg(RegisterMask mask) {
+        // This is faster than it looks; we rely on the C++ optimizer
+        // to strip the dead branch and inline just one alternative.
+        Register r = { (sizeof(RegisterMask) == 4) ? lsbSet32(mask) : lsbSet64(mask) };
+        return r;
+    }
+
+    // Return the highest numbered Register in mask.
+    inline Register msReg(RegisterMask mask) {
+        // This is faster than it looks; we rely on the C++ optimizer
+        // to strip the dead branch and inline just one alternative.
+        Register r = { (sizeof(RegisterMask) == 4) ? msbSet32(mask) : msbSet64(mask) };
+        return r;
+    }
+
+    // Clear bit r in mask, then return lsReg(mask).
+    inline Register nextLsReg(RegisterMask& mask, Register r) {
+        return lsReg(mask &= ~rmask(r));
+    }
+
+    // Clear bit r in mask, then return msReg(mask).
+    inline Register nextMsReg(RegisterMask& mask, Register r) {
+        return msReg(mask &= ~rmask(r));
+    }
 }
 #endif // __nanojit_RegAlloc__

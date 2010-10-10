@@ -45,17 +45,9 @@ namespace nanojit
 
     #ifdef _DEBUG
 
-    uint32_t RegAlloc::countActive()
+    bool RegAlloc::isConsistent(Register r, LIns* i) const
     {
-        int cnt = 0;
-        for(Register i=FirstReg; i <= LastReg; i = nextreg(i))
-            cnt += active[i] ? 1 : 0;
-        return cnt;
-    }
-
-    bool RegAlloc::isConsistent(Register r, LIns* i)
-    {
-        NanoAssert(r != UnknownReg);
+        NanoAssert(r != deprecated_UnknownReg);
         return (isFree(r)  && !getActive(r)     && !i) ||
                (!isFree(r) &&  getActive(r)== i && i );
     }

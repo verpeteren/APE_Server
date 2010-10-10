@@ -43,125 +43,213 @@
  * JS regular expression interface.
  */
 #include <stddef.h>
-#include "jspubtd.h"
+#include "jsprvtd.h"
 #include "jsstr.h"
+#include "jscntxt.h"
+#include "jsvector.h"
 
 #ifdef JS_THREADSAFE
 #include "jsdhash.h"
 #endif
 
-JS_BEGIN_EXTERN_C
+extern js::Class js_RegExpClass;
 
-struct JSRegExpStatics {
-    JSString    *input;         /* input string to match (perl $_, GC root) */
-    JSBool      multiline;      /* whether input contains newlines (perl $*) */
-    uint16      parenCount;     /* number of valid elements in parens[] */
-    uint16      moreLength;     /* number of allocated elements in moreParens */
-    JSSubString parens[9];      /* last set of parens matched (perl $1, $2) */
-    JSSubString *moreParens;    /* null or realloc'd vector for $10, etc. */
-    JSSubString lastMatch;      /* last string matched (perl $&) */
-    JSSubString lastParen;      /* last paren matched (perl $+) */
-    JSSubString leftContext;    /* input to left of last match (perl $`) */
-    JSSubString rightContext;   /* input to right of last match (perl $') */
+namespace js {
+
+class RegExpStatics
+{
+    typedef Vector<int, 20, SystemAllocPolicy> MatchPairs;
+    MatchPairs    matchPairs;
+    JSString      *input;
+    uintN         flags;
+    RegExpStatics *bufferLink;
+    bool          copied;
+
+    bool createDependent(JSContext *cx, size_t start, size_t end, Value *out) const;
+
+    size_t pairCount() const {
+        JS_ASSERT(matchPairs.length() % 2 == 0);
+        return matchPairs.length() / 2;
+    }
+
+    void copyTo(RegExpStatics &dst) {
+        dst.matchPairs.clear();
+        /* 'save' has already reserved space in matchPairs */
+        JS_ALWAYS_TRUE(dst.matchPairs.append(matchPairs));
+        dst.input = input;
+        dst.flags = flags;
+    }
+
+    void aboutToWrite() {
+        if (bufferLink && !bufferLink->copied) {
+            copyTo(*bufferLink);
+            bufferLink->copied = true;
+        }
+    }
+
+    /*
+     * Check whether the index at |checkValidIndex| is valid (>= 0).
+     * If so, construct a string for it and place it in |*out|.
+     * If not, place undefined in |*out|.
+     */
+    bool makeMatch(JSContext *cx, size_t checkValidIndex, size_t pairNum, Value *out) const;
+    static const uintN allFlags = JSREG_FOLD | JSREG_GLOB | JSREG_STICKY | JSREG_MULTILINE;
+    friend class RegExp;
+
+  public:
+    RegExpStatics() : bufferLink(NULL), copied(false) { clear(); }
+
+    struct InitBuffer {};
+    explicit RegExpStatics(InitBuffer) : bufferLink(NULL), copied(false) {}
+
+    static RegExpStatics *extractFrom(JSObject *global);
+
+    /* Mutators. */
+
+    bool save(JSContext *cx, RegExpStatics *buffer) {
+        JS_ASSERT(!buffer->copied && !buffer->bufferLink);
+        buffer->bufferLink = bufferLink;
+        bufferLink = buffer;
+        if (!buffer->matchPairs.reserve(matchPairs.length())) {
+            js_ReportOutOfMemory(cx);
+            return false;
+        }
+        return true;
+    }
+
+    void restore() {
+        if (bufferLink->copied)
+            bufferLink->copyTo(*this);
+        bufferLink = bufferLink->bufferLink;
+    }
+
+    void setMultiline(bool enabled) {
+        aboutToWrite();
+        if (enabled)
+            flags = flags | JSREG_MULTILINE;
+        else
+            flags = flags & ~JSREG_MULTILINE;
+    }
+
+    void clear() {
+        aboutToWrite();
+        input = 0;
+        flags = 0;
+        matchPairs.clear();
+    }
+
+    void checkInvariants() {
+        if (pairCount() > 0) {
+            JS_ASSERT(input);
+            JS_ASSERT(get(0, 0) <= get(0, 1));
+            JS_ASSERT(get(0, 1) <= int(input->length()));
+        }
+    }
+
+    void reset(JSString *newInput, bool newMultiline) {
+        aboutToWrite();
+        clear();
+        input = newInput;
+        setMultiline(newMultiline);
+        checkInvariants();
+    }
+
+    void setInput(JSString *newInput) {
+        aboutToWrite();
+        input = newInput;
+    }
+
+    /* Accessors. */
+
+    JSString *getInput() const { return input; }
+    uintN getFlags() const { return flags; }
+    bool multiline() const { return flags & JSREG_MULTILINE; }
+    bool matched() const { JS_ASSERT(pairCount() > 0); return get(0, 1) - get(0, 0) > 0; }
+    size_t getParenCount() const { JS_ASSERT(pairCount() > 0); return pairCount() - 1; }
+
+    void mark(JSTracer *trc) const {
+        if (input)
+            JS_CALL_STRING_TRACER(trc, input, "res->input");
+    }
+
+    size_t getParenLength(size_t parenNum) const {
+        if (pairCount() <= parenNum + 1)
+            return 0;
+        return get(parenNum + 1, 1) - get(parenNum + 1, 0);
+    }
+
+    int get(size_t pairNum, bool which) const {
+        JS_ASSERT(pairNum < pairCount());
+        return matchPairs[2 * pairNum + which];
+    }
+
+    /* Value creators. */
+
+    bool createInput(JSContext *cx, Value *out) const;
+    bool createLastMatch(JSContext *cx, Value *out) const { return makeMatch(cx, 0, 0, out); }
+    bool createLastParen(JSContext *cx, Value *out) const;
+    bool createLeftContext(JSContext *cx, Value *out) const;
+    bool createRightContext(JSContext *cx, Value *out) const;
+
+    bool createParen(JSContext *cx, size_t parenNum, Value *out) const {
+        return makeMatch(cx, (parenNum + 1) * 2, parenNum + 1, out);
+    }
+
+    /* Substring creators. */
+
+    void getParen(size_t num, JSSubString *out) const;
+    void getLastMatch(JSSubString *out) const;
+    void getLastParen(JSSubString *out) const;
+    void getLeftContext(JSSubString *out) const;
+    void getRightContext(JSSubString *out) const;
 };
 
-extern JS_FRIEND_API(void)
-js_SaveAndClearRegExpStatics(JSContext *cx, JSRegExpStatics *statics,
-                             JSTempValueRooter *tvr);
+}
 
-extern JS_FRIEND_API(void)
-js_RestoreRegExpStatics(JSContext *cx, JSRegExpStatics *statics,
-                        JSTempValueRooter *tvr);
+static inline bool
+VALUE_IS_REGEXP(JSContext *cx, js::Value v)
+{
+    return !v.isPrimitive() && v.toObject().isRegExp();
+}
 
-/*
- * This struct holds a bitmap representation of a class from a regexp.
- * There's a list of these referenced by the classList field in the JSRegExp
- * struct below. The initial state has startIndex set to the offset in the
- * original regexp source of the beginning of the class contents. The first
- * use of the class converts the source representation into a bitmap.
- *
- */
-typedef struct RECharSet {
-    JSPackedBool    converted;
-    JSPackedBool    sense;
-    uint16          length;
-    union {
-        uint8       *bits;
-        struct {
-            size_t  startIndex;
-            size_t  length;
-        } src;
-    } u;
-} RECharSet;
+inline const js::Value &
+JSObject::getRegExpLastIndex() const
+{
+    JS_ASSERT(isRegExp());
+    return fslots[JSSLOT_REGEXP_LAST_INDEX];
+}
 
-/*
- * This macro is safe because moreParens is guaranteed to be allocated and big
- * enough to hold parenCount, or else be null when parenCount is 0.
- */
-#define REGEXP_PAREN_SUBSTRING(res, num)                                      \
-    (((jsuint)(num) < (jsuint)(res)->parenCount)                              \
-     ? ((jsuint)(num) < 9)                                                    \
-       ? &(res)->parens[num]                                                  \
-       : &(res)->moreParens[(num) - 9]                                        \
-     : &js_EmptySubString)
+inline void
+JSObject::setRegExpLastIndex(const js::Value &v)
+{
+    JS_ASSERT(isRegExp());
+    fslots[JSSLOT_REGEXP_LAST_INDEX] = v;
+}
 
-typedef struct RENode RENode;
+inline void
+JSObject::setRegExpLastIndex(jsdouble d)
+{
+    JS_ASSERT(isRegExp());
+    fslots[JSSLOT_REGEXP_LAST_INDEX] = js::NumberValue(d);
+}
 
-struct JSRegExp {
-    jsrefcount   nrefs;         /* reference count */
-    uint16       flags;         /* flags, see jsapi.h's JSREG_* defines */
-    size_t       parenCount;    /* number of parenthesized submatches */
-    size_t       classCount;    /* count [...] bitmaps */
-    RECharSet    *classList;    /* list of [...] bitmaps */
-    JSString     *source;       /* locked source string, sans // */
-    jsbytecode   program[1];    /* regular expression bytecode */
-};
+inline void
+JSObject::zeroRegExpLastIndex()
+{
+    JS_ASSERT(isRegExp());
+    fslots[JSSLOT_REGEXP_LAST_INDEX].setInt32(0);
+}
 
-extern JSRegExp *
-js_NewRegExp(JSContext *cx, JSTokenStream *ts,
-             JSString *str, uintN flags, JSBool flat);
+namespace js { class AutoStringRooter; }
 
-extern JSRegExp *
-js_NewRegExpOpt(JSContext *cx, JSString *str, JSString *opt, JSBool flat);
+inline bool
+JSObject::isRegExp() const
+{
+    return getClass() == &js_RegExpClass;
+}
 
-#define HOLD_REGEXP(cx, re) JS_ATOMIC_INCREMENT(&(re)->nrefs)
-#define DROP_REGEXP(cx, re) js_DestroyRegExp(cx, re)
-
-extern void
-js_DestroyRegExp(JSContext *cx, JSRegExp *re);
-
-/*
- * Execute re on input str at *indexp, returning null in *rval on mismatch.
- * On match, return true if test is true, otherwise return an array object.
- * Update *indexp and cx->regExpStatics always on match.
- */
-extern JSBool
-js_ExecuteRegExp(JSContext *cx, JSRegExp *re, JSString *str, size_t *indexp,
-                 JSBool test, jsval *rval);
-
-extern void
-js_InitRegExpStatics(JSContext *cx);
-
-extern void
-js_TraceRegExpStatics(JSTracer *trc, JSContext *acx);
-
-extern void
-js_FreeRegExpStatics(JSContext *cx);
-
-#define VALUE_IS_REGEXP(cx, v)                                                \
-    (JSVAL_IS_OBJECT(v) && JSVAL_TO_OBJECT(v) &&                              \
-     OBJ_GET_CLASS(cx, JSVAL_TO_OBJECT(v)) == &js_RegExpClass)
-
-extern JSClass js_RegExpClass;
-
-enum regexp_tinyid {
-    REGEXP_SOURCE       = -1,
-    REGEXP_GLOBAL       = -2,
-    REGEXP_IGNORE_CASE  = -3,
-    REGEXP_LAST_INDEX   = -4,
-    REGEXP_MULTILINE    = -5,
-    REGEXP_STICKY       = -6
-};
+extern JS_FRIEND_API(JSBool)
+js_ObjectIsRegExp(JSObject *obj);
 
 extern JSObject *
 js_InitRegExpClass(JSContext *cx, JSObject *obj);
@@ -170,35 +258,28 @@ js_InitRegExpClass(JSContext *cx, JSObject *obj);
  * Export js_regexp_toString to the decompiler.
  */
 extern JSBool
-js_regexp_toString(JSContext *cx, JSObject *obj, jsval *vp);
+js_regexp_toString(JSContext *cx, JSObject *obj, js::Value *vp);
+
+extern JS_FRIEND_API(JSObject *) JS_FASTCALL
+js_CloneRegExpObject(JSContext *cx, JSObject *obj, JSObject *proto);
 
 /*
- * Create, serialize/deserialize, or clone a RegExp object.
+ * Move data from |cx|'s regexp statics to |statics| and root the input string in |tvr| if it's
+ * available.
  */
-extern JSObject *
-js_NewRegExpObject(JSContext *cx, JSTokenStream *ts,
-                   jschar *chars, size_t length, uintN flags);
+extern JS_FRIEND_API(void)
+js_SaveAndClearRegExpStatics(JSContext *cx, js::RegExpStatics *res, js::AutoStringRooter *tvr);
+
+/* Move the data from |statics| into |cx|. */
+extern JS_FRIEND_API(void)
+js_RestoreRegExpStatics(JSContext *cx, js::RegExpStatics *res);
 
 extern JSBool
 js_XDRRegExpObject(JSXDRState *xdr, JSObject **objp);
 
-extern JSObject *
-js_CloneRegExpObject(JSContext *cx, JSObject *obj, JSObject *parent);
-
-const uint32 JSSLOT_REGEXP_LAST_INDEX = JSSLOT_PRIVATE + 1;
-const uint32 REGEXP_CLASS_FIXED_RESERVED_SLOTS = 1;
-
-static inline void
-js_ClearRegExpLastIndex(JSObject *obj)
-{
-    JS_ASSERT(obj->getClass() == &js_RegExpClass);
-    obj->fslots[JSSLOT_REGEXP_LAST_INDEX] = JSVAL_ZERO;
-}
-
-/* Return whether the given character array contains RegExp meta-characters. */
-extern bool
-js_ContainsRegExpMetaChars(const jschar *chars, size_t length);
-
-JS_END_EXTERN_C
+extern JSBool
+js_regexp_exec(JSContext *cx, uintN argc, js::Value *vp);
+extern JSBool
+js_regexp_test(JSContext *cx, uintN argc, js::Value *vp);
 
 #endif /* jsregexp_h___ */

@@ -49,6 +49,9 @@
 /* Define to 1 if SpiderMonkey should support multi-threaded clients.  */
 /* #undef JS_THREADSAFE */
 
+/* Define to 1 if SpiderMonkey should include ctypes support.  */
+/* #undef JS_HAS_CTYPES */
+
 /* Define to 1 if SpiderMonkey should support the ability to perform
    entirely too much GC.  */
 /* #undef JS_GC_ZEAL */
@@ -56,6 +59,9 @@
 /* Define to 1 if the standard <stdint.h> header is present and
    useable.  See jstypes.h and jsstdint.h.  */
 #define JS_HAVE_STDINT_H 1
+
+/* Define to 1 if the <sys/types.h> defines int8_t, etc. */
+/* #undef JS_SYS_TYPES_H_DEFINES_EXACT_SIZE_TYPES */
 
 /* Define to 1 if the N-byte __intN types are defined by the
    compiler.  */
@@ -78,8 +84,9 @@
 /* #undef JS_INTPTR_TYPE */
 #define JS_BYTES_PER_WORD 4
 
-/* Some mozilla code uses JS-friend APIs that depend on JS_TRACER being
-   correct. */
+/* Some mozilla code uses JS-friend APIs that depend on JS_TRACER and
+   JS_METHODJIT being correct. */
 #define JS_TRACER 1
+#define JS_METHODJIT 1
 
 #endif /* js_config_h___ */
