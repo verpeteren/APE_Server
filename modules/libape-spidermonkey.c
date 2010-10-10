@@ -1053,6 +1053,7 @@ APE_JS_NATIVE(apemysql_escape)
 
 APE_JS_NATIVE(apemysql_sm_query)
 //{
+	JSObject *obj = JS_THIS_OBJECT(cx, vpn);
 	JSString *query;
 	struct _ape_mysql_data *myhandle;
 	jsval callback;
@@ -2516,6 +2517,7 @@ static struct _ape_mysql_queue *apemysql_push_queue(struct _ape_mysql_data *myha
 
 APE_JS_NATIVE(ape_sm_mysql_constructor)
 //{
+	JSObject *obj = JS_THIS_OBJECT(cx, vpn);
 	char *host, *login, *pass, *db;
 	
 	MYSAC *my;
