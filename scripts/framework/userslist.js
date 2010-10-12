@@ -1,13 +1,13 @@
 Ape.addEvent("mkchan", function(channel) {
-	channel.userslist = new $H;
+	channel.userslist = new Object();
 });
 
 Ape.addEvent("afterJoin", function(user, channel) {
-	channel.userslist.set(user.getProperty('pubid'), user);
+	channel.userslist[user.getProperty('pubid')] = user;
 });
 
 Ape.addEvent("left", function(user, channel) {
-	channel.userslist.erase(user.getProperty('pubid'));
+	delete channel.userslist[user.getProperty('pubid')];
 });
 
 Ape.registerCmd("list", false, function(params, infos) {

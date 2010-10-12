@@ -128,7 +128,7 @@ var Http = new Class({
 		this.socket.onRead = function(data) { 
 			this.response += data;
 			if (this.response.contains("\r\n\r\n")) {
-				if (!$defined(this.responseHeaders)) {
+				if (this.responseHeaders == undefined) {
 					var tmp						= this.response.split("\r\n\r\n");
 					this.responseHeadersLength 	= tmp[0].length;
 					tmp 						= tmp[0].split("\r\n");
@@ -141,10 +141,10 @@ var Http = new Class({
 						this.responseHeaders[tmpHeaders[0]] = tmpHeaders[1];
 					}
 				} else {
-					if ($defined(this.responseHeaders['Content-Length']) && this.getContentSize() >= this.responseHeaders['Content-Length']) {
+					if (this.responseHeaders['Content-Length'] != undefined && this.getContentSize() >= this.responseHeaders['Content-Length']) {
 						this.socket.close();
 					} 
-					if ($defined(this.responseHeaders['Location'])) {
+					if (this.responseHeaders['Location'] != undefined) {
 						socket.close();
 					}
 				}
@@ -159,8 +159,8 @@ var Http = new Class({
 			this.response	  	 = this.response.join();
 			this.httpResponse 	 = {status:this.responseCode, headers:this.responseHeaders, body:this.response};
 			
-			if ($defined(this.responseHeaders)) {
-				if ($defined(this.responseHeaders['Location'])) {
+			if (this.responseHeaders != undefined) {
+				if (this.responseHeaders['Location'] != undefined) {
 					var newRequest   = new Http(this.responseHeaders['Location']);
 					newRequest.setHeaders(this.headers);
 					newRequest.set('method', this.method);

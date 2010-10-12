@@ -1,5 +1,5 @@
 Ape.registerCmd("PROXY_CONNECT", true, function(params, infos) {
-	if (!$defined(params.host) || !$defined(params.port)) {
+	if (params.host == undefined || params.port == undefined) {
 		return 0;
 	}
 	var allowed = Ape.config('proxy.conf', 'allowed_hosts');
@@ -28,7 +28,7 @@ Ape.registerCmd("PROXY_CONNECT", true, function(params, infos) {
 		/* Create a new pipe (with a pubid) */
 		var pipe = new Ape.pipe();
 		
-		infos.user.proxys.set(pipe.getProperty('pubid'), pipe);
+		infos.user.proxys[pipe.getProperty('pubid')] = pipe;
 		
 		/* Set some private properties */
 		pipe.link = socket;
@@ -57,7 +57,7 @@ Ape.registerCmd("PROXY_CONNECT", true, function(params, infos) {
 		if ($defined(this.pipe)) {
 			if (!this.pipe.nouser) { /* User is not available anymore */
 				infos.user.pipe.sendRaw("PROXY_EVENT", {"event": "disconnect"}, {from: this.pipe});
-				infos.user.proxys.erase(this.pipe.getProperty('pubid'));
+				delete infos.user.proxys[this.pipe.getProperty('pubid')];
 			}
 			/* Destroy the pipe */
 			this.pipe.destroy();
@@ -75,7 +75,7 @@ Ape.addEvent("deluser", function(user) {
 });
 
 Ape.addEvent("adduser", function(user) {
-	user.proxys = new $H;
+	user.proxys = new Object();
 })
 
 

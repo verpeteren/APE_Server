@@ -68,7 +68,7 @@ var IRCApeclient = new Class({
 	
 	parseRaw: function(obj) {
 	//	Ape.log('Recu : ' + obj.raw);
-		if ($defined(this['raw' + obj.raw])) this['raw' + obj.raw](obj.data);
+		if (this['raw' + obj.raw] != undefined) this['raw' + obj.raw](obj.data);
 	},
 	
 	rawLOGIN: function(data) {
@@ -203,7 +203,7 @@ var IRC = new Class({
 	onRead: function(clientobj, data) {
 		Ape.log(data);
 		var raw = data.split(' ');
-		if ($defined(this['cmd' + raw[0]])) {
+		if (this['cmd' + raw[0]] != undefined) {
 			var cmd = raw[0];
 			raw.shift();
 			this['cmd' + cmd](clientobj, raw.join(' '));

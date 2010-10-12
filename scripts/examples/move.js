@@ -1,5 +1,5 @@
 Ape.registerCmd('setpos', true, function(params, infos) {
-	if ((!$defined(params.x) || !$defined(params.y)) && (!isFinite(params.x) || !isFinite(params.y))) return 0;
+	if ((params.x == undefined || params.y == undefined) && (!isFinite(params.x) || !isFinite(params.y))) return 0;
 
 	infos.user.setProperty('x', params.x);	
 	infos.user.setProperty('y', params.y);	

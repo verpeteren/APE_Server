@@ -47,7 +47,7 @@ Ape.addEvent("init", function() {
 	
 	/* Hook an existing command (for instance to add params and fire a BAD_PARAMS) */
 	Ape.registerHookCmd("foocmd", function(params, infos) {
-		if (!$defined(params.pipe)) {
+		if (params.pipe == undefined) {
 			return 0; // BAD_PARAMS
 		} else {
 			return 1;
