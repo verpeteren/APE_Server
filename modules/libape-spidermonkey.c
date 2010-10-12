@@ -26,11 +26,15 @@
 #ifdef _USE_MYSQL
 #include <mysac.h>
 #endif
-#include <jsapi.h>
+
+
 #include <stdio.h>
 #include <glob.h>
 #include "plugins.h"
 #include "global_plugins.h"
+
+#define DEBUG
+#include <jsapi.h>
 
 #define MODULE_NAME "spidermonkey"
 
@@ -216,6 +220,7 @@ static JSClass socketserver_class = {
 	    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, JS_FinalizeStub,
 	    JSCLASS_NO_OPTIONAL_MEMBERS
 };
+
 
 static JSClass socketclient_class = {
 	"sockClient", JSCLASS_HAS_PRIVATE,
@@ -474,9 +479,9 @@ static json_item *jsobj_to_ape_json(JSContext *cx, JSObject *json_obj)
 				break;
 			case JSTYPE_BOOLEAN:
 				if (!isarray) {
-					json_set_property_boolean(ape_json, JS_GetStringBytes(key), JS_GetStringLength(key), (vp == JSVAL_TRUE));
+					json_set_property_boolean(ape_json, JS_GetStringBytes(key), JS_GetStringLength(key), (JSVAL_TO_BOOLEAN(vp)));
 				} else {
-					json_set_element_boolean(ape_json, (vp == JSVAL_TRUE));
+					json_set_element_boolean(ape_json, (JSVAL_TO_BOOLEAN(vp)));
 				}
 				break;
 			default:
@@ -751,19 +756,19 @@ APE_JS_NATIVE(apepipe_sm_send_response)
 	jsval user, chl, pipe;
 	JS_GetProperty(cx, obj, "user", &user);
 	
-	if (user == JSVAL_VOID || JS_InstanceOf(cx, JSVAL_TO_OBJECT(user), &user_class, 0) == JS_FALSE) {
+	if (JSVAL_IS_VOID(user) || JS_InstanceOf(cx, JSVAL_TO_OBJECT(user), &user_class, 0) == JS_FALSE) {
 		return JS_TRUE;
 	}
 	
 	JS_GetProperty(cx, JSVAL_TO_OBJECT(user), "pipe", &pipe);
 	
-	if (pipe == JSVAL_VOID || JS_InstanceOf(cx, JSVAL_TO_OBJECT(pipe), &pipe_class, 0) == JS_FALSE) {
+	if (JSVAL_IS_VOID(pipe) || JS_InstanceOf(cx, JSVAL_TO_OBJECT(pipe), &pipe_class, 0) == JS_FALSE) {
 		return JS_TRUE;
 	}
 	
 	JS_GetProperty(cx, obj, "chl", &chl);
 	
-	if (chl == JSVAL_VOID || !JSVAL_IS_NUMBER(chl)) {
+	if (JSVAL_IS_VOID(chl) || !JSVAL_IS_NUMBER(chl)) {
 		return JS_TRUE;
 	}
 	
@@ -1289,6 +1294,7 @@ static void sm_sock_onconnect(ape_socket *client, acetables *g_ape)
 		((struct _ape_sock_js_obj *)cb->private)->client = client;
 		//JS_SetContextThread(cb->asc->cx);
 		//JS_BeginRequest(cb->asc->cx);
+
 			JS_CallFunctionName(cb->asc->cx, cb->server_obj, "onConnect", 0, NULL, &rval);
 		//JS_EndRequest(cb->asc->cx);
 		//JS_ClearContextThread(cb->asc->cx);						
@@ -2220,7 +2226,7 @@ APE_JS_NATIVE(ape_sm_raw_constructor)
 
 APE_JS_NATIVE(ape_sm_sockclient_constructor)
 //{
-	JSObject *obj = JS_THIS_OBJECT(cx, vpn);
+	JSObject *obj = JS_NewObjectForConstructor(cx, vpn);
 	int port;
 	char *ip;
 	JSObject *options = NULL;
@@ -2231,7 +2237,7 @@ APE_JS_NATIVE(ape_sm_sockclient_constructor)
 	if (!JS_ConvertArguments(cx, argc, JS_ARGV(cx, vpn), "is/o", &port, &ip, &options)) {
 		return JS_TRUE;
 	}
-
+	
 	sock_obj = xmalloc(sizeof(*sock_obj));
 	sock_obj->client_obj = NULL;
 	
@@ -2243,11 +2249,11 @@ APE_JS_NATIVE(ape_sm_sockclient_constructor)
 	cbcopy->state = 1;
 	
 	JS_AddObjectRoot(cx, &cbcopy->server_obj);
-	
+
 	pattern = xmalloc(sizeof(*pattern));
 	pattern->callbacks.on_connect = sm_sock_onconnect;
 	pattern->callbacks.on_disconnect = sm_sock_ondisconnect;
-	if (options != NULL && JS_GetProperty(cx, options, "flushlf", &vp) && JSVAL_IS_BOOLEAN(vp) && vp == JSVAL_TRUE) {
+	if (options != NULL && JS_GetProperty(cx, options, "flushlf", &vp) && JSVAL_IS_BOOLEAN(vp) && JSVAL_TO_BOOLEAN(vp)) {
 		pattern->callbacks.on_read_lf = sm_sock_onread_lf;
 		pattern->callbacks.on_read = NULL;
 	} else {
@@ -2263,12 +2269,14 @@ APE_JS_NATIVE(ape_sm_sockclient_constructor)
 /*	JS_DefineFunctions(cx, obj, apesocket_client_funcs);
 	JS_DefineFunctions(cx, obj, apesocket_funcs);*/
 	
+	*vpn = OBJECT_TO_JSVAL(obj);
+	
 	return JS_TRUE;
 }
 
 APE_JS_NATIVE(ape_sm_pipe_constructor)
 //{
-	JSObject *obj = JS_THIS_OBJECT(cx, vpn);
+	JSObject *obj = JS_NewObjectForConstructor(cx, vpn);
 	transpipe *pipe;
 	//JSObject *link;
 
@@ -2283,7 +2291,7 @@ APE_JS_NATIVE(ape_sm_pipe_constructor)
 	
 	/* TODO : This private data must be removed is the pipe is destroyed */
 
-	
+	*vpn = OBJECT_TO_JSVAL(obj);
 	return JS_TRUE;
 }
 
@@ -2517,7 +2525,7 @@ static struct _ape_mysql_queue *apemysql_push_queue(struct _ape_mysql_data *myha
 
 APE_JS_NATIVE(ape_sm_mysql_constructor)
 //{
-	JSObject *obj = JS_THIS_OBJECT(cx, vpn);
+	JSObject *obj = JS_NewObjectForConstructor(cx, vpn);
 	char *host, *login, *pass, *db;
 	
 	MYSAC *my;
@@ -2561,14 +2569,15 @@ APE_JS_NATIVE(ape_sm_mysql_constructor)
 	
 	//myhandle->to_call = mysac_connect;
 	myhandle->on_success = mysac_connect_success;
-
+	
+	*vpn = OBJECT_TO_JSVAL(obj);
 	return JS_TRUE;
 }
 #endif
 
 APE_JS_NATIVE(ape_sm_sockserver_constructor)
 //{
-	JSObject *obj = JS_THIS_OBJECT(cx, vpn);
+	JSObject *obj = JS_NewObjectForConstructor(cx, vpn);
 	int port;
 	char *ip;
 	JSObject *options = NULL;
@@ -2596,7 +2605,7 @@ APE_JS_NATIVE(ape_sm_sockserver_constructor)
 	JS_AddObjectRoot(cx, &((struct _ape_sock_callbacks *)server->attach)->server_obj);
 
 	/* check if flushlf is set to true in the optional object */
-	if (options != NULL && JS_GetProperty(cx, options, "flushlf", &vp) && JSVAL_IS_BOOLEAN(vp) && vp == JSVAL_TRUE) {
+	if (options != NULL && JS_GetProperty(cx, options, "flushlf", &vp) && JSVAL_IS_BOOLEAN(vp) && JSVAL_TO_BOOLEAN(vp)) {
 		server->callbacks.on_read_lf = sm_sock_onread_lf;
 	} else {
 		/* use the classic read callback */
@@ -2610,6 +2619,8 @@ APE_JS_NATIVE(ape_sm_sockserver_constructor)
 	JS_SetPrivate(cx, obj, server);
 
 	JS_DefineFunctions(cx, obj, apesocket_client_funcs);
+	
+	*vpn = OBJECT_TO_JSVAL(obj);
 		
 	return JS_TRUE;
 }
@@ -2758,7 +2769,7 @@ static int process_cmd_return(JSContext *cx, jsval rval, callbackp *callbacki, a
 			JS_GetProperty(cx, ret_opt, "name", &rawname);
 			JS_GetProperty(cx, ret_opt, "data", &data);						
 		
-			if (rawname != JSVAL_VOID && JSVAL_IS_STRING(rawname) && data != JSVAL_VOID && JSVAL_IS_OBJECT(data)) {
+			if (!JSVAL_IS_VOID(rawname) && JSVAL_IS_STRING(rawname) && !JSVAL_IS_VOID(data) && JSVAL_IS_OBJECT(data)) {
 				json_item *rawdata = NULL;
 				
 				if ((rawdata = jsobj_to_ape_json(cx, JSVAL_TO_OBJECT(data))) != NULL) {
@@ -2772,7 +2783,7 @@ static int process_cmd_return(JSContext *cx, jsval rval, callbackp *callbacki, a
 		} else {
 			unsigned int length = 0;
 			JS_GetArrayLength(cx, ret_opt, &length);
-			if (length == 2 && JS_GetElement(cx, ret_opt, 0, &vp[0]) && JS_GetElement(cx, ret_opt, 1, &vp[1]) && vp[0] != JSVAL_VOID && vp[1] != JSVAL_VOID) {
+			if (length == 2 && JS_GetElement(cx, ret_opt, 0, &vp[0]) && JS_GetElement(cx, ret_opt, 1, &vp[1]) && !JSVAL_IS_VOID(vp[0]) && !JSVAL_IS_VOID(vp[1])) {
 				if (JSVAL_IS_STRING(vp[1])) {
 					RAW *newraw;
 					JSString *code = JS_ValueToString(cx, vp[0]);
@@ -2915,7 +2926,7 @@ static void init_module(acetables *g_ape) // Called when module is loaded
 	JS_SetOptions(gcx, JSOPTION_VAROBJFIX | JSOPTION_JIT | JSOPTION_METHODJIT);
 	JS_SetVersion(gcx, JSVERSION_LATEST);
 	JS_SetErrorReporter(gcx, reportError);
-	JS_InitStandardClasses(gcx, JS_NewCompartmentAndGlobalObject(gcx, &global_class, NULL));
+	JS_InitStandardClasses(gcx, JS_NewGlobalObject(gcx, &global_class));
 	
 	add_property(&g_ape->properties, "sm_context", gcx, EXTEND_POINTER, EXTEND_ISPRIVATE);
 	add_property(&g_ape->properties, "sm_runtime", asr, EXTEND_POINTER, EXTEND_ISPRIVATE);
@@ -2947,7 +2958,7 @@ static void init_module(acetables *g_ape) // Called when module is loaded
 			JS_SetVersion(asc->cx, JSVERSION_LATEST);
 			JS_SetErrorReporter(asc->cx, reportError);
 
-			asc->global = JS_NewCompartmentAndGlobalObject(asc->cx, &global_class, NULL);
+			asc->global = JS_NewGlobalObject(asc->cx, &global_class);
 			
 			JS_InitStandardClasses(asc->cx, asc->global);
 			
@@ -3205,4 +3216,3 @@ static ace_callbacks callbacks = {
 };
 
 APE_INIT_PLUGIN(MODULE_NAME, init_module, free_module, callbacks)
-
