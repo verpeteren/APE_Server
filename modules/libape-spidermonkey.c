@@ -33,7 +33,6 @@
 #include "plugins.h"
 #include "global_plugins.h"
 
-#define DEBUG
 #include <jsapi.h>
 
 #define MODULE_NAME "spidermonkey"
