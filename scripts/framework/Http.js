@@ -74,11 +74,11 @@ var Http = new Class({
 	writeData: function(key, value) {
 		var tmpData = {};
 		tmpData[key] = value;
-		this.write(Hash.toQueryString(tmpData));
+		this.write(Object.toQueryString(tmpData));
 	},
 	
 	writeObject: function(data) {
-		this.write(Hash.toQueryString(data));
+		this.write(Object.toQueryString(data));
 	},
 	
 	getContentSize: function() {
@@ -167,7 +167,7 @@ var Http = new Class({
 					newRequest.write(this.body.join('&'));
 					newRequest.finish(callback);
 				} else {
-					callback.run(this.httpResponse);
+					callback.apply(this, [this.httpResponse]);
 				}
 			}
 		}.bind(this, callback);
@@ -181,7 +181,7 @@ var Http = new Class({
 	getContent: function (callback) {
 		this.connect();
 		this.read(function(result) {
-			callback.run(result['body']);
+			callback.apply(this, [result['body']]);
 		});
 	},
 });

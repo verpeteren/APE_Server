@@ -1,3 +1,5 @@
+setTimeout = Ape.setTimeout;
+setInterval = Ape.setInterval;
 /*
 ---
 MooTools: the javascript framework
