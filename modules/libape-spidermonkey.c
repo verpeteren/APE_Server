@@ -1897,9 +1897,9 @@ APE_JS_NATIVE(ape_sm_include)
 	JS_free(cx, cfile);
 	
 	if (!g_ape->is_daemon) {
-		printf("[JS] Loading script %s...\n", rpath);
+		printf("[%s] : Loading script %s\n", MODULE_NAME , rpath);
 	}
-	ape_log(APE_INFO, __FILE__, __LINE__, g_ape, "[JS] Loading script %s", rpath);
+	ape_log(APE_INFO, __FILE__, __LINE__, g_ape, "[%s] : Loading script %s", MODULE_NAME , rpath);
 	bytecode = JS_CompileFile(cx, JS_GetGlobalObject(cx), rpath);
 
 	if (bytecode == NULL) {
@@ -1913,10 +1913,10 @@ APE_JS_NATIVE(ape_sm_include)
 			}
 		}
 		if (!g_ape->is_daemon) {
-			printf("[JS] Failed loading script %s\n", rpath);
+			printf("[%s] Failed loading script %s\n", MODULE_NAME, rpath);
 		}
-		ape_log(APE_ERR, __FILE__, __LINE__, g_ape, "[JS] Failed loading script %s", rpath);
-        return JS_TRUE;
+		ape_log(APE_ERR, __FILE__, __LINE__, g_ape, "[%s] Failed loading script %s", MODULE_NAME, rpath);
+		return JS_TRUE;
 	}
 
 	JS_ExecuteScript(cx, JS_GetGlobalObject(cx), bytecode, &frval);
@@ -2610,6 +2610,55 @@ APE_JS_NATIVE(ape_sm_echo)
 	
 	return JS_TRUE;
 }
+/**
+ * @name: 	Ape.system
+ * @params: (string) the full path to the executable. This must exist and executable
+ * @params: (string) parameters
+ * @return: null if executed did not take place.
+ *          undefined if the execute could not start (-1)
+ *          else the return code of the command
+ * @example:var r = Ape.system("/usr/bin/wget", "http://www.verpeteren.nl -o /tmp/www.verpeteren.nl.html");
+ * 			Ape.log('returned: ' + r);
+ */
+
+APE_JS_NATIVE(ape_sm_system)
+//{
+	char *cparams;
+	char *cexec;
+	JSString *params;
+	JSString *exec;
+	jsval ret;
+	if (!JS_ConvertArguments(cx, 2, JS_ARGV(cx, vpn), "SS", &exec, &params)) {
+		return JS_TRUE;
+	}
+	cexec = JS_EncodeString(cx, exec);
+	cparams = JS_EncodeString(cx, params);
+	ret = JSVAL_NULL;
+	if (	(g_ape->is_daemon && getuid() !=0 )     //Should have change user to nor root in ape.conf
+		||
+			( ! g_ape->is_daemon && getuid() != 0 )  //Do not do this as root
+		) {
+		char *cmd = NULL;
+		struct stat sb;
+		if (stat(cexec, &sb) >= 0 && sb.st_mode & S_IXUSR){
+			cmd = xmalloc( sizeof(char) * (3 + strlen (cexec) + strlen (cparams)) );
+			if (cmd){
+				strcpy (cmd, cexec);
+		 		cmd[strlen (cexec)] = ' ';
+				strcat(cmd, cparams);
+				ape_log(APE_INFO, __FILE__, __LINE__, g_ape, "[%s] : executing '%s'", MODULE_NAME, cmd);
+				int r = system(cmd);
+				ret = (r == -1)? JSVAL_VOID : INT_TO_JSVAL(r);
+			}
+			free(cmd);
+		}
+	}
+	JS_SET_RVAL(cx, vpn, ret);
+	JS_free(cx, cparams);
+	JS_free(cx, cexec);
+	return JS_TRUE;
+}
+
 
 #if 0
 APE_JS_NATIVE(ape_sm_raw_constructor)
@@ -3116,6 +3165,7 @@ static JSFunctionSpec ape_funcs[] = {
 	JS_FS("addUser", ape_sm_adduser, 1, 0),
 	JS_FS("mkChan", ape_sm_mkchan, 1, 0),
 	JS_FS("rmChan", ape_sm_rmchan, 1, 0),
+	JS_FS("system", ape_sm_system, 2, 0),
 	JS_FS("readfile", ape_sm_readfile, 1, 0),
 	JS_FS_END
 };
@@ -4250,9 +4300,9 @@ static void init_module(acetables *g_ape) // Called when module is loaded
 
 	if (asc->bytecode == NULL) {
 		if (!g_ape->is_daemon) {
-			printf("JavaScript : Cannot open main.ape.js\n");
+			printf("[%s] : Cannot open main.ape.js\n", MODULE_NAME);
 		}
-		ape_log(APE_WARN, __FILE__, __LINE__, g_ape, "[JS] : Cannot open main.ape.js");
+		ape_log(APE_INFO, __FILE__, __LINE__, g_ape, "[%s] : Cannot open main.ape.js", MODULE_NAME);
 		return;
 	} else {
 		asc->next = asr->scripts;
