@@ -25,7 +25,7 @@ SRC=src/entry.c src/sock.c src/hash.c src/handle_http.c src/cmd.c src/users.c sr
 $(EXEC): $(OBJ) $(UDNS) modules
 	@$(CC) $(OBJ) -o $(EXEC) $(LFLAGS) $(UDNS)
 ifdef STAGING_RELEASE
-	#@strip $(EXEC)
+	@strip $(EXEC)
 endif
 	@echo done $(EXEC)
 
