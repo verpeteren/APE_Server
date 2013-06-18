@@ -25,6 +25,10 @@
 #ifdef _USE_MYSQL
 #include <mysac.h>
 #endif
+#ifdef _USE_MONGO
+#include "mongo.h"
+#endif
+
 #include <jsapi.h>
 #include <stdio.h>
 #include <glob.h>
@@ -1560,6 +1564,7 @@ static void reportError(JSContext *cx, const char *message, JSErrorReport *repor
 		report->tokenptr);
 }
 
+
 static JSObject *ape_json_to_jsobj(JSContext *cx, json_item *head, JSObject *root)
 {
 	while (head != NULL) {
@@ -2942,7 +2947,7 @@ APE_JS_NATIVE(ape_sm_mysql_constructor)
 	char *chost, *clogin, *cpass, *cdb;
 	JSObject *obj = JS_NewObjectForConstructor(cx, vpn);
 
-    JS_SET_RVAL(cx, vpn, OBJECT_TO_JSVAL(obj));
+	JS_SET_RVAL(cx, vpn, OBJECT_TO_JSVAL(obj));
 
 	MYSAC *my;
 	int fd;
@@ -3132,6 +3137,819 @@ static JSFunctionSpec sha1_funcs[] = {
 	JS_FS_END
 };
 
+#ifdef _USE_MONGO
+/**
+ * @Author: Peter Reijnders <peter.reijnders@verpeteren.nl>
+ * @date   Jun, 2013
+ *
+ * @brief  Mongo library connection in Ape spidermonkey module, mostly a work in progress / proof of concept
+ *
+ * @FIXME: array values are not handled correctly, all values are now stored as null.
+ * @FIXME: Ape.Mongo.check is faulty somehow
+ * @TODO: There is no asynchrounous, non blocking handling. So it is quite APE unworthy
+ * @TODO: Mongo has many features, (index, replica's, find_one, batch, insert) these could be added
+ * @TODO: not all bson types are handled correctly when saving the values
+ */
+
+
+void jsobj_to_bson(JSContext *cx, JSObject *jsobj, bson *target){
+	JSObject *iterator = JS_NewPropertyIterator(cx, jsobj);
+	jsid idp;
+	JSPropertyDescriptor desc;
+	jsval key, value;
+	JSString *skey, *svalue;
+	char* ckey, *cvalue;
+	if (iterator){
+		while(JS_NextProperty(cx, iterator, &idp)) {
+			if (idp == JSID_VOID) {
+				break;
+			}
+			if(JS_GetPropertyDescriptorById(cx, jsobj, idp, 0, &desc)){
+				if (JS_IdToValue(cx, idp, &key)){
+					skey = JS_ValueToString(cx, key);
+					ckey = JS_EncodeString(cx, skey);
+					value = desc.value;
+					if (JSVAL_IS_NULL(value)) {
+						bson_append_null(target, ckey);
+					}else if (JSVAL_IS_VOID(value)) {
+						bson_append_undefined(target, ckey);
+					}else if (JSVAL_IS_BOOLEAN(value)) {
+						bson_append_bool(target, ckey, JSVAL_TO_BOOLEAN(value));
+					}else if (JSVAL_IS_DOUBLE(value)) {
+						bson_append_double(target, ckey, JSVAL_TO_DOUBLE(value));
+					}else if (JSVAL_IS_INT(value)) {
+						bson_append_int(target, ckey, JSVAL_TO_INT(value));
+					}else if (JSVAL_IS_STRING(value)) {
+						svalue = JS_ValueToString(cx, value);
+						cvalue = JS_EncodeString(cx, svalue);
+						bson_append_string( target, ckey, cvalue);
+						JS_free(cx, cvalue);
+					}else if (JS_IsArrayObject(cx, JSVAL_TO_OBJECT(value))){
+						//FIXME: array values become null, probably due to that arrays have not an index for JS_NextProperty
+						bson_append_start_array( target, ckey );
+						JSObject *arr = JSVAL_TO_OBJECT(value);
+						jsobj_to_bson(cx, arr, target);
+						bson_append_finish_array( target );
+					}else if ( ! JSVAL_IS_PRIMITIVE(value)) {
+						bson sub[1];
+						bson_init( sub);
+						JSObject *subj = JSVAL_TO_OBJECT(value);
+						jsobj_to_bson(cx, subj, sub);
+						bson_finish( sub );
+						bson_append_bson(target, ckey, sub);
+						bson_destroy(sub);
+					}
+					//todo, date, etc.*/
+					JS_free(cx, ckey);
+				}
+			}
+		}
+	}
+}
+
+void bson_to_jsobj(JSContext *cx, const bson *in, JSObject *out){
+	bson_iterator i[1];
+	bson_type type;
+	const char *key;
+	bson_iterator_init( i, in );
+	if(out == NULL){
+		out = JS_NewObject(cx, NULL, NULL, NULL);
+	}
+	jsval value ;
+	while((type = bson_iterator_next(i)) != BSON_EOO){
+		key = bson_iterator_key( i );
+		switch(type){
+			case BSON_UNDEFINED:
+				value = JSVAL_VOID;
+				break;
+			case BSON_NULL:
+				value = JSVAL_NULL;
+				break;
+			case BSON_BOOL:
+				value = BOOLEAN_TO_JSVAL(bson_iterator_bool( i ));
+				break;
+			case BSON_INT://ft
+			case BSON_LONG:
+				value = INT_TO_JSVAL(bson_iterator_long( i ));
+				break;
+			case BSON_DOUBLE:
+				value = DOUBLE_TO_JSVAL(bson_iterator_double( i ));
+				break;
+			case BSON_STRING:{
+					const char *cstring = bson_iterator_string( i );
+					JSString *jstring = JS_NewStringCopyZ(cx, cstring);
+					value = STRING_TO_JSVAL(jstring);
+				}
+				break;
+			case BSON_ARRAY: {
+					bson sub[1];
+					JSObject *subout = JS_NewArrayObject(cx, 0, NULL);
+					bson_iterator_subobject_init( i, sub, 0 );
+					bson_to_jsobj(cx, sub, subout);
+					value = OBJECT_TO_JSVAL(subout);
+				}
+				break;
+			case BSON_OBJECT:{
+					bson sub[1];
+					JSObject *subout = JS_NewObject(cx, NULL, NULL, NULL);
+					bson_iterator_subobject_init( i, sub, 0 );
+					bson_to_jsobj(cx, sub, subout);
+					value = OBJECT_TO_JSVAL(subout);
+				}
+				break;
+			default: //TODO: all other types
+				value = JSVAL_VOID;
+				break;
+		}
+		JS_SetProperty(cx, out, key, &value);
+	}
+}
+//! Initializes namespace via a macro.
+//! @param database The database name (e.g. 'staff')
+//! @param collection The collection name (e.g. 'employee')
+//! @return namespace The concated namespace (e.g. 'staff.employee'
+//! NOTE namespace is xmalloc'd and needs to be free'd
+#define SM_MONGO_NAMESPACE(database, collection, namespace) \
+		namespace = (char *) xmalloc(sizeof(char) *  (3 + strlen(database) + strlen(collection) ));\
+		strcpy(namespace, database);\
+		strcat(namespace, ".\0");\
+		strcat(namespace, collection);
+
+struct _ape_mongo_data {
+	mongo *conn;
+	void (*on_success)(struct _ape_mongo_data *, int);
+	JSObject *jsmongo;
+	JSContext *cx;
+	void *data;
+	jsval callback;
+};
+
+/**
+ * @name: Ape.Mongo.command
+ * @method
+ * @params: (string) database name (e.g. animals)
+ * @params: (string) Collection name (e.g. mamals)
+ * @params: (string) command (e.g. drop)
+ * @params: (function) onSuccess callback for success
+ * @params: (function.object) the object that has been been returned by the command
+ * @params: (function) onError callback for error
+ * @params: (int) onError.coded The error code
+ * @params: (string) onError.errorstring The error message
+ * @returns: (void)
+ * @example:
+ * @code
+ var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
+ mongo.command('animals', 'mamals', 'drop', function(res) {
+    	Ape.log(JSON.stringify(res));
+    }, function (code, msg) {
+    	Ape.log('error code:' + code + ' ' + msg);
+    });
+ * @endcode
+ */
+APE_JS_NATIVE(ape_sm_mongo_command)
+//{
+	struct _ape_mongo_data *myhandle;
+	jsval callbackSuccess, callbackError;
+	JSObject *obj = JS_THIS_OBJECT(cx, vpn);
+	char *cdb, *ccol, *ccmd;
+	JSString *db, *col, *cmd;
+	if ((myhandle = JS_GetPrivate(cx, obj)) == NULL) {
+		return JS_TRUE;
+	}
+	mongo_clear_errors( myhandle->conn);
+	if (!JS_ConvertArguments(cx, 3, JS_ARGV(cx, vpn), "SSS", &db, &col, &cmd )) {
+		return JS_TRUE;
+	}
+	cdb = JS_EncodeString(cx, db);
+	ccol = JS_EncodeString(cx, col);
+	ccmd = JS_EncodeString(cx, cmd);
+	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[3], JSTYPE_FUNCTION, &callbackSuccess)) {
+		return JS_TRUE;
+	}
+	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[4], JSTYPE_FUNCTION, &callbackError)) {
+		return JS_TRUE;
+	}
+	bson effect[1];
+	bson_init(effect);
+	bson_finish(effect);
+	jsval rval;
+	if( mongo_simple_str_command( myhandle->conn, cdb, ccmd, ccol, effect) == MONGO_OK ) {
+		jsval params[1];
+		JSObject *jsobj = JS_NewObjectForConstructor(cx, vpn);
+		bson_to_jsobj(myhandle->cx, effect, jsobj);
+		params[0] = OBJECT_TO_JSVAL(jsobj);
+		JS_CallFunctionValue(cx, myhandle->jsmongo, callbackSuccess, 1, params, &rval);
+	}else{
+		jsval params[2];
+		JSString *errorstring = JS_NewStringCopyZ(cx, myhandle->conn->lasterrstr);
+		params[0] = INT_TO_JSVAL(myhandle->conn->lasterrcode);
+		params[1] = STRING_TO_JSVAL(errorstring);
+		JS_CallFunctionValue(cx, myhandle->jsmongo, callbackError, 2, params, &rval);
+	}
+	bson_destroy(effect);
+	JS_free(cx, cdb);
+	JS_free(cx, ccol);
+	JS_free(cx, ccmd);
+	return JS_TRUE;
+}
+
+/**
+ * @name: Ape.Mongo.drop
+ * @method
+ * @params: (string) database name (e.g. animals)
+ * @params: (string) Collection name (e.g. mamals)
+ * @params: (function) onSuccess callback for success
+ * @params: (function) onError callback for error
+ * @params: (int) onError.coded The error code
+ * @params: (string) onError.errorstring The error message
+ * @returns: (void)
+ * @example
+ var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
+ mongo.drop('ops', 'employees', function() {
+    	Ape.log("ok");
+    }, function (code, msg) {
+    	Ape.log('error code:' + code + ' ' + msg);
+    });
+ */
+APE_JS_NATIVE(ape_sm_mongo_drop)
+//{
+	struct _ape_mongo_data *myhandle;
+	jsval callbackSuccess, callbackError;
+	JSObject *obj = JS_THIS_OBJECT(cx, vpn);
+	char *cdb, *ccol;
+	JSString *db, *col;
+	if ((myhandle = JS_GetPrivate(cx, obj)) == NULL) {
+		return JS_TRUE;
+	}
+	mongo_clear_errors( myhandle->conn);
+	if (!JS_ConvertArguments(cx, 2, JS_ARGV(cx, vpn), "SS", &db, &col )) {
+		return JS_TRUE;
+	}
+	cdb = JS_EncodeString(cx, db);
+	ccol = JS_EncodeString(cx, col);
+	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[2], JSTYPE_FUNCTION, &callbackSuccess)) {
+		return JS_TRUE;
+	}
+	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[3], JSTYPE_FUNCTION, &callbackError)) {
+		return JS_TRUE;
+	}
+	jsval rval;
+	if( mongo_cmd_drop_collection( myhandle->conn, cdb, ccol, NULL ) == MONGO_OK ) {
+		JS_CallFunctionValue(cx, myhandle->jsmongo, callbackSuccess, 0, NULL, &rval);
+	}else{
+		jsval params[2];
+		JSString *errorstring = JS_NewStringCopyZ(cx, myhandle->conn->lasterrstr);
+		params[0] = INT_TO_JSVAL(myhandle->conn->lasterrcode);
+		params[1] = STRING_TO_JSVAL(errorstring);
+		JS_CallFunctionValue(cx, myhandle->jsmongo, callbackError, 2, params, &rval);
+	}
+	JS_free(cx, cdb);
+	JS_free(cx, ccol);
+	return JS_TRUE;
+}
+
+/**
+ * @name: Ape.Mongo.check
+ * @method
+ * @params: (function) onSuccess callback for success
+ * @params: (function) onError callback for error
+ * @returns: (void)
+ * @example:
+ * @code
+ var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
+ mongo.check(function() {
+    	Ape.log("Connection ok");
+    }, function (code, error) {
+    	Ape.log("connection is bad");
+    });
+ * @endcode
+  @FIXME: it appears that mongo_check_connection is broken, it always returns -1
+ */
+
+APE_JS_NATIVE(ape_sm_mongo_check)
+//{
+	struct _ape_mongo_data *myhandle;
+	jsval callbackSuccess, callbackError;
+	JSObject *obj = JS_THIS_OBJECT(cx, vpn);
+	if ((myhandle = JS_GetPrivate(cx, obj)) == NULL) {
+		return JS_TRUE;
+	}
+	mongo_clear_errors( myhandle->conn);
+	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[0], JSTYPE_FUNCTION, &callbackSuccess)) {
+		return JS_TRUE;
+	}
+	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[1], JSTYPE_FUNCTION, &callbackError)) {
+		return JS_TRUE;
+	}
+	jsval rval;
+	if( mongo_check_connection( myhandle->conn) != MONGO_ERROR ) {
+		rval = JSVAL_TRUE;
+		JS_CallFunctionValue(cx, myhandle->jsmongo, callbackSuccess, 0, NULL, &rval);
+	}else{
+		rval = JSVAL_FALSE;
+		jsval params[2];
+		JSString *errorstring = JS_NewStringCopyZ(cx, myhandle->conn->lasterrstr);
+		params[0] = INT_TO_JSVAL(myhandle->conn->lasterrcode);
+		params[1] = STRING_TO_JSVAL(errorstring);
+		JS_CallFunctionValue(cx, myhandle->jsmongo, callbackError, 2, params, &rval);
+	}
+	return JS_TRUE;
+}
+/**
+ * @name: Ape.Mongo.query
+ * @method
+ * @params: (string) database name (e.g. animals)
+ * @params: (string) Collection name (e.g. mamals)
+ * @params: (object) filters The object that will be searched for. Eventually with extra $orderby, $hint, and $explain
+ * @params: (function) onSuccess callback for success
+ * @params: (function.object) An array of objects returned from the query
+ * @params: (function) onError callback for error
+ * @params: (int) onError.coded The error code
+ * @params: (string) onError.errorstring The error message
+ * @returns: (void)
+ * @example:
+ * @code
+ var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
+    mongo.query('ops', 'employees'
+			{'name': 'peter'},
+			function(res) {
+				Ape.log(JSON.stringify(res));
+			},
+			function (code, error) {
+				Ape.log('error code:' + code + ' ' + error);
+			}
+	 );
+	mongo.query('ops', 'employees'
+			{'$query': {'name': 'peter'}, '$orderby': {'iq' : -1 }},
+			function(res) {
+				Ape.log(JSON.stringify(res));
+			},
+			function (code, error) {
+				Ape.log('error code:' + code + ' ' + error);
+			}
+	 );
+ * @endcode
+ */
+APE_JS_NATIVE(ape_sm_mongo_query)
+//{
+	mongo_cursor cursor[1];
+	JSObject *jsobj;
+	struct _ape_mongo_data *myhandle;
+	jsval callbackSuccess, callbackError;
+	JSObject *obj = JS_THIS_OBJECT(cx, vpn);
+	char *cdb, *ccol, *cdbCol;
+	JSString *db, *col;
+	if ((myhandle = JS_GetPrivate(cx, obj)) == NULL) {
+		return JS_TRUE;
+	}
+	mongo_clear_errors( myhandle->conn);
+	if (!JS_ConvertArguments(cx, 3, JS_ARGV(cx, vpn), "SSo", &db, &col, &jsobj)) {
+		return JS_TRUE;
+	}
+	cdbCol = NULL;
+	cdb = JS_EncodeString(cx, db);
+	ccol = JS_EncodeString(cx, col);
+	SM_MONGO_NAMESPACE(cdb, ccol, cdbCol);
+	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[3], JSTYPE_FUNCTION, &callbackSuccess)) {
+		return JS_TRUE;
+	}
+	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[4], JSTYPE_FUNCTION, &callbackError)) {
+		return JS_TRUE;
+	}
+	bson query[1];
+	bson_init( query );
+	jsobj_to_bson(myhandle->cx, jsobj, query);
+	bson_finish( query );
+	mongo_cursor_init( cursor, myhandle->conn, cdbCol );
+	jsval rval;
+	mongo_cursor_set_query( cursor, query );
+	JSObject *res = JS_NewArrayObject(myhandle->cx, 0, NULL); /* First param [{},{},{},] */
+	unsigned int pos = 0;
+	int status;
+	jsval currentval;
+	while( (status = mongo_cursor_next( cursor )) == MONGO_OK ){
+		JSObject *elem = JS_NewObject(myhandle->cx, NULL, NULL, NULL);
+		bson *in = &cursor->current;
+		bson_to_jsobj(myhandle->cx, in, elem);
+		currentval = OBJECT_TO_JSVAL(elem);
+		JS_SetElement(myhandle->cx, res, pos, &currentval);
+		pos++;
+	}
+	mongo_cursor_destroy( cursor );
+	if( myhandle->conn->err ==0 ) {
+		jsval params[1];
+		params[0] = OBJECT_TO_JSVAL(res);
+		JS_CallFunctionValue(cx, myhandle->jsmongo, callbackSuccess, 1, params, &rval);
+	}else{
+		jsval params[2];
+		JSString *errorstring = JS_NewStringCopyZ(cx, myhandle->conn->lasterrstr);
+		params[0] = INT_TO_JSVAL(myhandle->conn->lasterrcode);
+		params[1] = STRING_TO_JSVAL(errorstring);
+		JS_CallFunctionValue(cx, myhandle->jsmongo, callbackError, 2, params, &rval);
+	}
+	bson_destroy( query );
+	JS_free(cx, cdb);
+	JS_free(cx, ccol);
+	free(cdbCol);
+	return JS_TRUE;
+}
+
+/**
+ * @name: Ape.Mongo.update
+ * @method
+ * @params: (string) database name (e.g. animals)
+ * @params: (string) Collection name (e.g. mamals)
+ * @params: (object) filter The fields and values to be changed
+ * @params: (object) changes The change conditions
+ * @params: (function) onSuccess callback for success
+ * @params: (function) onError callback for error
+ * @params: (int) onError.coded The error code
+ * @params: (string) onError.errorstring The error message
+ * @returns: (void)
+ * @example:
+ * @code
+ var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);;
+ mongo.update('ops', 'employees',
+		{'name' : 'peter'},
+		{'$inc' : {'iq': 1}},
+		function(res) {
+		    mongo.query(db + '.' + collection, {'name': 'peter'},
+			function() {
+				Ape.log("update ok");
+			},
+			function (code, error) {
+				Ape.log('error code:' + code + ' ' + error);
+			});
+		},
+			function (code, error) {
+				Ape.log('error code:' + code + ' ' + error);
+			}
+	);
+ * @endcode
+ * @TODO: update type flagsMONGO_UPDATE_UPSERT = 0x1, MONGO_UPDATE_MULTI = 0x2, MONGO_UPDATE_BASIC = 0x4 as param
+ *
+ */
+APE_JS_NATIVE(ape_sm_mongo_update)
+//{
+	JSObject *jsobj;
+	JSObject *jsobjOper;
+	struct _ape_mongo_data *myhandle;
+	jsval callbackSuccess, callbackError;
+	JSObject *obj = JS_THIS_OBJECT(cx, vpn);
+	char *cdb, *ccol, *cdbCol;
+	JSString *db, *col;
+	if ((myhandle = JS_GetPrivate(cx, obj)) == NULL) {
+		return JS_TRUE;
+	}
+	mongo_clear_errors( myhandle->conn);
+	if (!JS_ConvertArguments(cx, 4, JS_ARGV(cx, vpn), "SSoo", &db, &col, &jsobj, &jsobjOper)) {
+		return JS_TRUE;
+	}
+	cdbCol = NULL;
+	cdb = JS_EncodeString(cx, db);
+	ccol = JS_EncodeString(cx, col);
+	SM_MONGO_NAMESPACE(cdb, ccol, cdbCol);
+	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[4], JSTYPE_FUNCTION, &callbackSuccess)) {
+		return JS_TRUE;
+	}
+	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[5], JSTYPE_FUNCTION, &callbackError)) {
+		return JS_TRUE;
+	}
+	bson bobj[1];
+	bson_init( bobj );
+	jsobj_to_bson(myhandle->cx, jsobj, bobj);
+	bson_finish( bobj );
+	bson boper[1];
+	bson_init( boper);
+	jsobj_to_bson(myhandle->cx, jsobjOper, boper);
+	bson_finish( boper );
+	mongo_write_concern write_concerns[1];
+	mongo_write_concern *pwrite_concern = &write_concerns[0];
+	mongo_write_concern_init( pwrite_concern );
+	write_concerns->w = 1;
+	mongo_write_concern_finish( pwrite_concern );
+	jsval rval;
+	int type = MONGO_UPDATE_UPSERT & MONGO_UPDATE_BASIC & MONGO_UPDATE_MULTI;
+	if( mongo_update( myhandle->conn, cdbCol, bobj,  boper, type, pwrite_concern )  == MONGO_OK) {
+		JS_CallFunctionValue(cx, myhandle->jsmongo, callbackSuccess, 0, NULL, &rval);
+	}else{
+		jsval params[2];
+		JSString *errorstring = JS_NewStringCopyZ(cx, myhandle->conn->lasterrstr);
+		params[0] = INT_TO_JSVAL(myhandle->conn->lasterrcode);
+		params[1] = STRING_TO_JSVAL(errorstring);
+		JS_CallFunctionValue(cx, myhandle->jsmongo, callbackError, 2, params, &rval);
+	}
+	mongo_write_concern_destroy( pwrite_concern );
+	bson_destroy( bobj );
+	bson_destroy( boper );
+	mongo_clear_errors( myhandle->conn);
+	JS_free(cx, cdb);
+	JS_free(cx, ccol);
+	free(cdbCol);
+	return JS_TRUE;
+}
+/**
+ * @name: Ape.Mongo.remove
+ * @method
+ * @params: (string) database name (e.g. animals)
+ * @params: (string) Collection name (e.g. mamals)
+ * @params: (object) filter The fields and values to be removed
+ * @params: (function) onSuccess callback for success
+ * @params: (function) onError callback for error
+ * @params: (int) onError.coded The error code
+ * @params: (string) onError.errorstring The error message
+ * @returns: (void)
+ * @example:
+ * @code
+ var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
+ mongo.remove('ops', 'employees',
+		{'name' : 'peter'},
+		function(res) {
+		    mongo.query(db + '.' + collection, {'name': 'peter'},
+			function(res) {
+				Ape.log(JSON.strinify(res));
+			},
+			function (code, error) {
+				Ape.log('error code:' + code + ' ' + error);
+			});
+		},
+		function (code, error) {
+			Ape.log('error code:' + code + ' ' + error);
+		}
+	);
+ * @endcode
+ */
+APE_JS_NATIVE(ape_sm_mongo_remove)
+//{
+	JSObject *jsobj;
+	struct _ape_mongo_data *myhandle;
+	jsval callbackSuccess, callbackError;
+	JSObject *obj = JS_THIS_OBJECT(cx, vpn);
+	char *cdb, *ccol, *cdbCol;
+	JSString *db, *col;
+	if ((myhandle = JS_GetPrivate(cx, obj)) == NULL) {
+		return JS_TRUE;
+	}
+	mongo_clear_errors( myhandle->conn);
+	if (!JS_ConvertArguments(cx, 3, JS_ARGV(cx, vpn), "SSo", &db, &col, &jsobj)) {
+		return JS_TRUE;
+	}
+	cdbCol = NULL;
+	cdb = JS_EncodeString(cx, db);
+	ccol = JS_EncodeString(cx, col);
+	printf("%s%s\n", cdb, ccol);
+	SM_MONGO_NAMESPACE(cdb, ccol, cdbCol);
+
+	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[3], JSTYPE_FUNCTION, &callbackSuccess)) {
+		return JS_TRUE;
+	}
+	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[4], JSTYPE_FUNCTION, &callbackError)) {
+		return JS_TRUE;
+	}
+	bson bobj[1];
+	bson_init( bobj );
+	jsobj_to_bson(myhandle->cx, jsobj, bobj);
+	bson_finish( bobj );
+	mongo_write_concern write_concerns[1];
+	mongo_write_concern *pwrite_concern = &write_concerns[0];
+	mongo_write_concern_init( pwrite_concern );
+	write_concerns->w = 1;
+	mongo_write_concern_finish( pwrite_concern );
+	jsval rval;
+	if( mongo_remove( myhandle->conn, cdbCol, bobj, pwrite_concern )  == MONGO_OK) {
+		JS_CallFunctionValue(cx, myhandle->jsmongo, callbackSuccess, 0, NULL, &rval);
+	}else{
+		jsval params[2];
+		JSString *errorstring = JS_NewStringCopyZ(cx, myhandle->conn->lasterrstr);
+		params[0] = INT_TO_JSVAL(myhandle->conn->lasterrcode);
+		params[1] = STRING_TO_JSVAL(errorstring);
+		JS_CallFunctionValue(cx, myhandle->jsmongo, callbackError, 2, params, &rval);
+	}
+	mongo_write_concern_destroy( pwrite_concern );
+	bson_destroy( bobj );
+	mongo_clear_errors( myhandle->conn);
+	JS_free(cx, cdb);
+	JS_free(cx, ccol);
+	free(cdbCol);
+	return JS_TRUE;
+}
+
+/**
+ * @name: Ape.Mongo.insert
+ * @method
+ * @params: (string) database name (e.g. animals)
+ * @params: (string) Collection name (e.g. mamals)
+ * @params: (object) object the object that will be stored, this will be added with a _ID field
+ * @params: (function) onSuccess callback for success
+ * @params: (string) id The id of the object;
+ * @params: (function) onError callback for error
+ * @params: (int) onError.coded The error code
+ * @params: (string) onError.errorstring The error message
+ * @returns: (void)
+ * @example:
+ * @code
+ var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
+
+ mongo.insert('ops', 'employees', {'name': 'peter', 'age' : 999}, function(id) {
+    	Ape.log("inserted :" + id );
+    }, function (code, msg) {
+    	Ape.log('error code:' + code + ' ' + msg);
+    });
+ * @endcode
+ */
+APE_JS_NATIVE(ape_sm_mongo_insert)
+//{
+	JSObject *jsobj;
+	struct _ape_mongo_data *myhandle;
+	jsval callbackSuccess, callbackError;
+	JSObject *obj = JS_THIS_OBJECT(cx, vpn);
+	char *cdb, *ccol, *cdbCol;
+	JSString *db, *col;
+	if ((myhandle = JS_GetPrivate(cx, obj)) == NULL) {
+		return JS_TRUE;
+	}
+	mongo_clear_errors( myhandle->conn);
+	if (!JS_ConvertArguments(cx, 3, JS_ARGV(cx, vpn), "SSo", &db, &col, &jsobj)) {
+		return JS_TRUE;
+	}
+	cdbCol = NULL;
+	cdb = JS_EncodeString(cx, db);
+	ccol = JS_EncodeString(cx, col);
+	SM_MONGO_NAMESPACE(cdb, ccol, cdbCol);
+	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[3], JSTYPE_FUNCTION, &callbackSuccess)) {
+		return JS_TRUE;
+	}
+	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[4], JSTYPE_FUNCTION, &callbackError)) {
+		return JS_TRUE;
+	}
+	bson record[1];
+	bson_init( record );
+	bson_append_new_oid( record, "_id" );
+	jsobj_to_bson(myhandle->cx, jsobj, record);
+	bson_finish( record );
+	mongo_write_concern write_concerns[1];
+	mongo_write_concern *pwrite_concern = &write_concerns[0];
+	mongo_write_concern_init( pwrite_concern );
+	write_concerns->w = 1;
+	mongo_write_concern_finish( pwrite_concern );
+	jsval rval;
+	if( mongo_insert( myhandle->conn, cdbCol, record, pwrite_concern )  == MONGO_OK) {
+		jsval params[1];
+		bson_iterator iterator[1];
+		if ( bson_find( iterator, record, "_id" )) {
+			char mongoid[25];
+			bson_oid_t *oid = bson_iterator_oid( iterator );
+			bson_oid_to_string(oid, mongoid);
+			JSString *jstring = JS_NewStringCopyZ(cx, mongoid);
+			params[0] = STRING_TO_JSVAL(jstring);
+		}else{
+			params[0] = JSVAL_VOID;
+		}
+		JS_CallFunctionValue(cx, myhandle->jsmongo, callbackSuccess, 1, params, &rval);
+	}else{
+		jsval params[2];
+		JSString *errorstring = JS_NewStringCopyZ(cx, myhandle->conn->lasterrstr);
+		params[0] = INT_TO_JSVAL(myhandle->conn->lasterrcode);
+		params[1] = STRING_TO_JSVAL(errorstring);
+		JS_CallFunctionValue(cx, myhandle->jsmongo, callbackError, 2, params, &rval);
+	}
+	mongo_write_concern_destroy( pwrite_concern );
+	bson_destroy( record );
+	mongo_clear_errors( myhandle->conn);
+	JS_free(cx, cdb);
+	JS_free(cx, ccol);
+	free(cdbCol);
+	return JS_TRUE;
+}
+
+/**
+ * Destructor
+ */
+static void ape_sm_mongo_finalize(JSContext *cx, JSObject *jsmongo);
+static void ape_sm_mongo_finalize(JSContext *cx, JSObject *jsmongo){
+	struct _ape_mongo_data *myhandle;
+	if ((myhandle = JS_GetPrivate(cx, jsmongo)) != NULL) {
+		mongo_clear_errors( myhandle->conn);
+		mongo_disconnect(myhandle->conn);
+		mongo_destroy(myhandle->conn);
+		myhandle->jsmongo = NULL;
+		if(myhandle->conn){
+			free(myhandle->conn);
+		}
+	}
+	JS_SetPrivate(cx, jsmongo, (void *) NULL);
+}
+
+/**
+ * @name: Ape.Mongo.close
+ * @returns: (void)
+ * @method
+ * @example:
+ * @code
+ var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
+ mongo.close();
+ delete mongo;
+ * @endcode
+ */
+APE_JS_NATIVE(ape_sm_mongo_close)
+//{
+	struct _ape_mongo_data *myhandle;
+	JSObject *jsobj = JS_THIS_OBJECT(cx, vpn);
+	if ((myhandle = JS_GetPrivate(cx, jsobj)) == NULL) {
+		return JS_TRUE;
+	}
+	ape_sm_mongo_finalize(cx, jsobj);
+	return JS_TRUE;
+}
+
+static JSFunctionSpec ape_sm_mongo_funcs[] = {
+	JS_FS("onConnect", ape_sm_stub, 0, 0),
+	JS_FS("onError", ape_sm_stub, 0, 0),
+	JS_FS("query", ape_sm_mongo_query, 4, 0),
+	JS_FS("insert", ape_sm_mongo_insert, 4, 0),
+	JS_FS("update", ape_sm_mongo_update, 5, 0),
+	JS_FS("check", ape_sm_mongo_check, 2, 0),
+	JS_FS("drop", ape_sm_mongo_drop, 4, 0),
+	JS_FS("remove", ape_sm_mongo_remove, 4, 0),
+	JS_FS("command", ape_sm_mongo_command, 5, 0),
+	JS_FS("close", ape_sm_mongo_close, 0, 0),
+	JS_FS_END
+};
+
+static JSFunctionSpec ape_sm_mongo_funcs_static[] = {
+	JS_FS_END
+};
+static JSClass mongo_class = {
+	"Mongo", JSCLASS_HAS_PRIVATE,
+		JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+		JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, ape_sm_mongo_finalize,
+		JSCLASS_NO_OPTIONAL_MEMBERS
+};
+
+/**
+ * Name Ape.Mongo
+ * @constructor
+ * @params: (string) host	Hostname or ip address
+ * @params: [(int) port]	Port
+ * @params: [(timeout)]		Timeout in ms
+ * @returns: (Object|boolean) Object on success (onConnect method is called), or null (onError method is called);
+ * @example:
+ * @code
+   var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
+ * @endcode
+ */
+APE_JS_NATIVE(ape_sm_mongo_constructor)
+//{
+	int status, port = MONGO_DEFAULT_PORT, timeout = 1000;
+	char *cip;
+	JSString *ip;
+	if (!JS_ConvertArguments(cx, argc, JS_ARGV(cx, vpn), "S/ii", &ip, &port, &timeout)) {
+		return JS_TRUE;
+	}
+	JSObject *obj = JS_NewObjectForConstructor(cx, vpn);
+	JS_SET_RVAL(cx, vpn, OBJECT_TO_JSVAL(obj));
+	mongo *conn = (mongo *) xmalloc(sizeof(*conn));
+	struct _ape_mongo_data *myhandle;
+	myhandle = (struct _ape_mongo_data*) xmalloc(sizeof(*myhandle));
+	cip = JS_EncodeString(cx, ip);
+	if (timeout > 0){
+		mongo_set_op_timeout( conn, timeout );
+	}
+	status = mongo_client( conn, cip, port );
+	myhandle->conn = conn;
+	myhandle->jsmongo = obj;
+	myhandle->cx = cx;
+	myhandle->data = NULL;
+	myhandle->callback = JSVAL_NULL;
+	jsval params[1], rval;
+	params[0] = INT_TO_JSVAL(status);
+	if (status != MONGO_OK) {
+		JS_SET_RVAL(cx, vpn, JSVAL_FALSE);
+		JS_free(cx, cip);
+		const char *cstring;
+		switch ( conn->err ) {
+			case MONGO_CONN_NO_SOCKET: cstring = "[Mongo] No socket"; break;
+			case MONGO_CONN_FAIL:      cstring = "[Mongo] Connection failed"; break;
+			case MONGO_CONN_NOT_MASTER: cstring = "[Mongo] Not master"; break;
+			default:	 				cstring = "[Mongo] Error in connection"; break; //printf("Mongo status: %d\n", status);
+		}
+		if (!g_ape->is_daemon) {
+			printf("[%s]: %s\n", MODULE_NAME, cstring);
+		}
+		ape_log(APE_INFO, __FILE__, __LINE__, g_ape, "[%s] : %s", MODULE_NAME, cstring);
+		JS_CallFunctionName(myhandle->cx, myhandle->jsmongo, "onError", 1, params, &rval);//FIXME: why is this not called?
+		JS_SET_RVAL(cx, vpn, JSVAL_NULL);
+		return JS_TRUE;
+	}
+	JS_SetPrivate(cx, obj, myhandle);
+	JS_DefineFunctions(cx, obj, ape_sm_mongo_funcs);
+	JS_CallFunctionName(myhandle->cx, myhandle->jsmongo, "onConnect", 1, params, &rval);//FIXME: why is this not called?
+	JS_free(cx, cip);
+	return JS_TRUE;
+}
+
+#endif
+
 
 static void ape_sm_define_ape(ape_sm_compiled *asc, JSContext *gcx, acetables *g_ape)
 {
@@ -3139,7 +3957,9 @@ static void ape_sm_define_ape(ape_sm_compiled *asc, JSContext *gcx, acetables *g
 	#ifdef _USE_MYSQL
 	JSObject *jsmysql;
 	#endif
-
+	#ifdef _USE_MONGO
+	JSObject *jsmongo;
+	#endif
 	obj = JS_DefineObject(asc->cx, asc->global, "Ape", &ape_class, NULL, 0);
 	b64 = JS_DefineObject(asc->cx, obj, "base64", &b64_class, NULL, 0);
 	sha1 = JS_DefineObject(asc->cx, obj, "sha1", &sha1_class, NULL, 0);
@@ -3167,6 +3987,9 @@ static void ape_sm_define_ape(ape_sm_compiled *asc, JSContext *gcx, acetables *g
 	#ifdef _USE_MYSQL
 	jsmysql = JS_InitClass(asc->cx, obj, NULL, &mysql_class, ape_sm_mysql_constructor, 2, NULL, NULL, NULL, apemysql_funcs_static);
 	#endif
+	#ifdef _USE_MONGO
+	jsmongo = JS_InitClass(asc->cx, obj, NULL, &mongo_class, ape_sm_mongo_constructor, 2, NULL, NULL, NULL, ape_sm_mongo_funcs_static);
+	#endif
 	#if 0
 	JS_InitClass(asc->cx, obj, NULL, &raw_class, ape_sm_raw_constructor, 1, NULL, NULL, NULL, NULL); /* Not used */
 	#endif
@@ -3183,7 +4006,10 @@ static void ape_sm_define_ape(ape_sm_compiled *asc, JSContext *gcx, acetables *g
 	#ifdef _USE_MYSQL
 	JS_DefineFunctions(asc->cx, jsmysql, apemysql_funcs);
 	#endif
-	
+	#ifdef _USE_MONGO
+	JS_DefineFunctions(asc->cx, jsmongo, ape_sm_mongo_funcs);
+	#endif
+
 	JS_SetContextPrivate(asc->cx, asc);
 }
 
@@ -3348,6 +4174,7 @@ static void ape_fire_callback(const char *name, uintN argc, jsval *argv, acetabl
 	
 }
 
+
 static void init_module(acetables *g_ape) // Called when module is loaded
 {
 	JSRuntime *rt;
@@ -3425,7 +4252,7 @@ static void init_module(acetables *g_ape) // Called when module is loaded
 		if (!g_ape->is_daemon) {
 			printf("JavaScript : Cannot open main.ape.js\n");
 		}
-		ape_log(APE_WARN, __FILE__, __LINE__, g_ape, "JavaScript : Cannot open main.ape.js");
+		ape_log(APE_WARN, __FILE__, __LINE__, g_ape, "[JS] : Cannot open main.ape.js");
 		return;
 	} else {
 		asc->next = asr->scripts;

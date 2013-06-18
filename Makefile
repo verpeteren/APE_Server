@@ -7,10 +7,11 @@ OBJ=$(tmpdir)/base64.o $(tmpdir)/channel.o $(tmpdir)/cmd.o $(tmpdir)/config.o $(
 TARGET=aped
 EXEC=bin/$(TARGET)
 UDNS=./deps/udns-0.0.9/libudns.a
+
 include ./build.mk
 ifdef STAGING_DEBUG
 DEBUGFLAGS=-g -ggdb
-PROFILEFLAGS=-pg -profile
+PROFILEFLAGS=-pg -profile -finstrument-functions
 endif
 CFLAGS=-Wall -O2 -minline-all-stringops -I ./deps/udns-0.0.9/
 LFLAGS=-rdynamic -ldl -lm -lpthread
@@ -24,7 +25,7 @@ SRC=src/entry.c src/sock.c src/hash.c src/handle_http.c src/cmd.c src/users.c sr
 $(EXEC): $(OBJ) $(UDNS) modules
 	@$(CC) $(OBJ) -o $(EXEC) $(LFLAGS) $(UDNS)
 ifdef STAGING_RELEASE
-	@strip $(EXEC)
+	#@strip $(EXEC)
 endif
 	@echo done $(EXEC)
 

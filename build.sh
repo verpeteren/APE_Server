@@ -4,6 +4,7 @@ if [ -n "$1" ] && [ "$1" = "clean" ]; then
 	make clean
 	cd ./modules&&make clean
 	cd ./deps/mysac&&make clean
+	cd ./deps/mongo-c-driver-master&&make clean&&rm *.a *.so
 	cd ../../../deps/udns-0.0.9&&make clean
 	cd ../js/src&&make clean&&cd ../..
 else
@@ -32,5 +33,17 @@ else
 		echo "#undef _USE_MYSQL" >> ./src/configure.h
 	fi
 	echo -e "STAGING_DEBUG=0\nSTAGING_RELEASE=1\n" > build.mk
+	
+	if [ -e "/usr/include/mongo/client/dbclient.h" ]
+	then
+		echo "HAS_MONGO = yes" > ./modules/mongo.mk
+		echo "#define _USE_MONGO 1" >> ./src/configure.h
+	else
+		echo "HAS_MONGO = 0" > ./modules/mongo.mk
+		echo "#undef _USE_MONGO" >> ./src/configure.h
+	fi
+	
+	echo -e "STAGING_DEBUG=0\nSTAGING_RELEASE=1\n" > build.mk
+	
 	make
 fi

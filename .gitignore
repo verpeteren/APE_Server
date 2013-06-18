@@ -5,6 +5,7 @@ src/build/*.o
 build.mk
 modules/mysql.mk
 modules/platform.mk
+modules/mongo.mk
 modules/lib/libmod_spidermonkey.so
 modules/deps/mysac/make.deps
 modules/deps/mysac/*.[ao]

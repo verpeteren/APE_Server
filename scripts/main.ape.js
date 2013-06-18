@@ -6,7 +6,7 @@ Ape.addEvent('init', function() {
 			include('utils/utils.js');
 			include('commands/proxy.js');
 			include('commands/inlinepush.js');
-			include('examples/nickname.js');
+			//include('examples/nickname.js');
 			include('examples/move.js');
 			//include('examples/ircserver.js');
 			//include('framework/http_auth.js');
@@ -18,6 +18,7 @@ Ape.addEvent('init', function() {
 			//include('test/MySQL.js');
 			//include('test/Socket.js');
 			//include('test/Pipes.js');
+			include('test/Mongo.js');
 	} catch (e) {
 		Ape.log(e.message + '\n\t' + e.fileName + ':' + e.lineNumber);
 	}
