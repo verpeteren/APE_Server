@@ -29,37 +29,37 @@ static int event_kqueue_add(struct _fdevent *ev, int fd, int bitadd)
 	struct kevent kev;
 	struct timespec ts;
 	int filter = 0;
-		
+
 	memset(&kev, 0, sizeof(kev));
-	
+
 	if (bitadd & EVENT_READ) {
-		filter = EVFILT_READ; 
+		filter = EVFILT_READ;
 
 		ts.tv_sec = 0;
 		ts.tv_nsec = 0;
-	
+
 		EV_SET(&kev, fd, filter, EV_ADD|EV_CLEAR, 0, 0, NULL);
 		if (kevent(ev->kq_fd, &kev, 1, NULL, 0, &ts) == -1) {
 			return -1;
 		}
-	
+
 	}
 
 	if (bitadd & EVENT_WRITE) {
-		filter = EVFILT_WRITE; 
-	
+		filter = EVFILT_WRITE;
+
 		memset(&kev, 0, sizeof(kev));
 
 		ts.tv_sec = 0;
 		ts.tv_nsec = 0;
-	
+
 		EV_SET(&kev, fd, filter, EV_ADD|EV_CLEAR, 0, 0, NULL);
 		if (kevent(ev->kq_fd, &kev, 1, NULL, 0, &ts) == -1) {
 			return -1;
 		}
-	
+
 	}
-	
+
 	return 1;
 }
 
@@ -72,14 +72,14 @@ static int event_kqueue_poll(struct _fdevent *ev, int timeout_ms)
 {
 	int nfds;
 	struct timespec ts;
-	
+
 	ts.tv_sec = timeout_ms / 1000;
 	ts.tv_nsec = (timeout_ms % 1000) * 1000000;
 
 	if ((nfds = kevent(ev->kq_fd, NULL, 0, ev->events, *ev->basemem * 2, &ts)) == -1) {
 		return -1;
 	}
-	
+
 	return nfds;
 }
 
@@ -96,13 +96,13 @@ static void event_kqueue_growup(struct _fdevent *ev)
 static int event_kqueue_revent(struct _fdevent *ev, int i)
 {
 	int bitret = 0;
-	
+
 	if (ev->events[i].filter == EVFILT_READ) {
 		bitret = EVENT_READ;
 	} else if (ev->events[i].filter == EVFILT_WRITE) {
 		bitret = EVENT_WRITE;
 	}
-	
+
 	return bitret;
 }
 
@@ -118,8 +118,8 @@ int event_kqueue_reload(struct _fdevent *ev)
 	if ((ev->kq_fd = kqueue()) == -1) {
 		return 0;
 	}
-	
-	return 1;	
+
+	return 1;
 }
 
 int event_kqueue_init(struct _fdevent *ev)
@@ -129,9 +129,9 @@ int event_kqueue_init(struct _fdevent *ev)
 	}
 
 	ev->events = xmalloc(sizeof(struct kevent) * (*ev->basemem * 2));
-	
+
 	memset(ev->events, 0, sizeof(struct kevent) * (*ev->basemem * 2));
-	
+
 	ev->add = event_kqueue_add;
 	ev->remove = event_kqueue_remove;
 	ev->poll = event_kqueue_poll;
@@ -139,7 +139,7 @@ int event_kqueue_init(struct _fdevent *ev)
 	ev->growup = event_kqueue_growup;
 	ev->revent = event_kqueue_revent;
 	ev->reload = event_kqueue_reload;
-	
+
 	return 1;
 }
 
@@ -149,4 +149,5 @@ int event_kqueue_init(struct _fdevent *ev)
 	return 0;
 }
 #endif
+
 

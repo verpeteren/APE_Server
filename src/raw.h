@@ -38,9 +38,9 @@ typedef struct RAW
 {
 	char *data;
 	struct RAW *next;
-	
+
 	raw_priority_t priority;
-	
+
 	int len;
 	int refcount;
 } RAW;

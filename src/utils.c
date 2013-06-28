@@ -49,7 +49,7 @@ void *xrealloc(void *ptr, size_t size)
 void s_tolower(char *upper, unsigned int len)
 {
 	unsigned int i;
-	
+
 	for (i = 0; i < len; i++) {
 		upper[i] = tolower(upper[i]);
 	}
@@ -64,11 +64,11 @@ long int itos(long long int input, char *output, long int len)
 		input = -input;
 	}
 	output[(len - i)] = '\0';
-	
-	for (i = 2; input != 0; i++) {	
-		
+
+	for (i = 2; input != 0; i++) {
+
 		output[len - i] = '0' + (input % 10);
-		
+
 		input /= 10;
 	}
 	if (sign) {
@@ -82,7 +82,7 @@ long int itos(long long int input, char *output, long int len)
 char *trim(char *s)
 {
 	int i = 0, j;
-	
+
 	while (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r') {
 		i++;
 	}
@@ -94,7 +94,7 @@ char *trim(char *s)
 	}
 
 	i = strlen(s) - 1;
-	
+
 	while (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r') {
 		i--;
 	}
@@ -117,7 +117,7 @@ int seof(char *buf, unsigned short int stop)
 {
 	char *pBuf;
 	int pos = 0;
-	
+
 	for (pBuf = buf; pBuf[pos] != '\0'; pos++) {
 		/*if (pos == 4096) {
 			return -1;
@@ -133,7 +133,7 @@ int sneof(char *buf, size_t len, size_t max)
 {
 	char *pBuf;
 	int pos = 0;
-	
+
 	for (pBuf = buf; pos < len && pos < max; pos++) {
 		if (pBuf[pos] == '\n') {
 			return pos+1;
@@ -144,21 +144,21 @@ int sneof(char *buf, size_t len, size_t max)
 
 int rand_n(int n)
 {
-    int partSize   = 1 + (n == RAND_MAX ? 0 : (RAND_MAX - n) / (n + 1));
-    int maxUsefull = partSize * n + (partSize - 1);
-    int draw;
-    
-    do {
-        draw = rand();
-    } while (draw > maxUsefull);
-    
-    return draw / partSize;
+	int partSize   = 1 + (n == RAND_MAX ? 0 : (RAND_MAX - n) / (n + 1));
+	int maxUsefull = partSize * n + (partSize - 1);
+	int draw;
+
+	do {
+		draw = rand();
+	} while (draw > maxUsefull);
+
+	return draw / partSize;
 }
 
 size_t explode(const char split, char *input, char **tP, unsigned int limit) // Explode a string in an array.
 {
 	size_t i = 0;
-	
+
 	tP[0] = input;
 	for (i = 0; *input; input++) {
 		if (*input == split) {
@@ -174,7 +174,7 @@ size_t explode(const char split, char *input, char **tP, unsigned int limit) // 
 			return i;
 		}
 	}
-	
+
 	return i;
 }
 
@@ -194,15 +194,15 @@ char *get_path(const char *full_path)
 	char *new_path;
 	char *last;
 	new_path = xstrdup(full_path);
-	
+
 	last = strrchr(new_path, '/');
 	if (last == NULL) {
 		free(new_path);
 		return NULL;
 	}
-	
+
 	last[1] = '\0';
-	
+
 	return new_path;
 }
 
@@ -260,5 +260,4 @@ int urldecode(char *string)
 
 	return 1;
 }
-
 

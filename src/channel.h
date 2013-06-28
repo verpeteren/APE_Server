@@ -40,9 +40,9 @@ typedef struct CHANNEL
 
 	struct _transpipe *pipe;
 	struct userslist *head;
-	
+
 	struct BANNED *banned;
-	
+
 	extend *properties;
 
 	int flags;
@@ -54,9 +54,9 @@ typedef struct BANNED
 {
 	char ip[16];
 	char reason[257];
-	
+
 	long int expire;
-	
+
 	struct BANNED *next;
 } BANNED;
 
@@ -79,7 +79,7 @@ void rmallban(CHANNEL *chan);
 
 struct userslist *getlist(const char *chan, acetables *g_ape);
 struct userslist *getuchan(struct USERS *user, CHANNEL *chan);
-	
+
 unsigned int setlevel(struct USERS *user_actif, struct USERS *user_passif, CHANNEL *chan, unsigned int lvl, acetables *g_ape);
 //unsigned int settopic(struct USERS *user, CHANNEL *chan, const char *topic, acetables *g_ape);
 unsigned int isvalidchan(char *name);

@@ -32,7 +32,7 @@ struct _ape_proxy_pipe
 {
 	int allow_write;
 	char pipe[33];
-	
+
 	struct _ape_proxy_pipe *next;
 };
 
@@ -41,37 +41,36 @@ typedef struct _ape_proxy ape_proxy;
 struct _ape_proxy
 {
 	char identifier[33];
-	
+
 	int eol; // FLushing at CRLF
-	
+
 	/* proxy pipe */
 	struct _transpipe *pipe;
-	
+
 	struct {
 		struct _ape_proxy_cache *host;
 		int port;
 		int fd;
 	} sock;
-	
+
 	int state;
-	
+
 	int nlink;
 	/* List of allowed user/pipe */
 	ape_proxy_pipe *to;
-	
+
 	struct _ape_proxy *next;
 	struct _ape_proxy *prev;
-	
+
 	struct _extend *properties;
 };
-
 
 typedef struct _ape_proxy_cache ape_proxy_cache;
 struct _ape_proxy_cache
 {
 	char *host;
 	char ip[16];
-	
+
 	struct _ape_proxy_cache *next;
 };
 

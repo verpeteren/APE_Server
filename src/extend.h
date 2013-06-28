@@ -38,12 +38,12 @@ typedef enum {
 typedef struct _extend extend;
 
 struct _extend
-{	
+{
 	void *val;
-	
+
 	EXTEND_TYPE type;
 	EXTEND_PUBLIC visibility;
-	
+
 	struct _extend *next;
 	char key[EXTEND_KEY_LENGTH+1];
 };
@@ -54,3 +54,4 @@ void del_property(extend **entry, const char *key);
 //extend *add_property_str(extend **entry, char *key, char *val);
 extend *add_property(extend **entry, const char *key, void *val, EXTEND_TYPE etype, EXTEND_PUBLIC visibility);
 #endif
+

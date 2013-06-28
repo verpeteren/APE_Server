@@ -34,13 +34,13 @@ RAW *forge_raw(const char *raw, json_item *jlist)
 	RAW *new_raw;
 	char unixtime[16];
 	struct jsontring *string;
-	
+
 	json_item *jstruct = NULL;
-		
+
 	sprintf(unixtime, "%li", time(NULL));
-	
+
 	jstruct = json_new_object();
-	
+
 	json_set_property_strN(jstruct, "time", 4, unixtime, strlen(unixtime));
 	json_set_property_strN(jstruct, "raw", 3, raw, strlen(raw));
 	json_set_property_objN(jstruct, "data", 4, jlist);
@@ -74,7 +74,7 @@ int free_raw(RAW *fraw)
 RAW *copy_raw(RAW *input)
 {
 	RAW *new_raw;
-	
+
 	new_raw = xmalloc(sizeof(*new_raw));
 	new_raw->len = input->len;
 	new_raw->next = input->next;
@@ -82,15 +82,15 @@ RAW *copy_raw(RAW *input)
 	new_raw->refcount = 0;
 	new_raw->data = xmalloc(sizeof(char) * (new_raw->len + 1));
 
-	memcpy(new_raw->data, input->data, new_raw->len + 1);	
+	memcpy(new_raw->data, input->data, new_raw->len + 1);
 
-	return new_raw;	
+	return new_raw;
 }
 
 RAW *copy_raw_z(RAW *input)
 {
 	(input->refcount)++;
-	
+
 	return input;
 }
 
@@ -109,12 +109,12 @@ void post_raw_sub(RAW *raw, subuser *sub, acetables *g_ape)
 		pool->size += add_size;
 		expend_raw_pool(pool->rawfoot, add_size);
 	}
-	
+
 	pool->rawfoot->raw = raw;
 	pool->rawfoot = pool->rawfoot->next;
-	
+
 	(sub->raw_pools.nraw)++;
-	
+
 }
 
 /* Post raw to a user and propagate it to all of it's subuser */
@@ -131,7 +131,7 @@ void post_raw(RAW *raw, USERS *user, acetables *g_ape)
 void post_raw_restricted(RAW *raw, USERS *user, subuser *sub, acetables *g_ape)
 {
 	subuser *tSub = user->subuser;
-	
+
 	if (sub == NULL) {
 		return;
 	}
@@ -149,7 +149,7 @@ void post_raw_restricted(RAW *raw, USERS *user, subuser *sub, acetables *g_ape)
 void post_raw_channel(RAW *raw, struct CHANNEL *chan, acetables *g_ape)
 {
 	userslist *list;
-	
+
 	if (chan == NULL || raw == NULL || chan->head == NULL) {
 		return;
 	}
@@ -165,12 +165,12 @@ void post_raw_channel(RAW *raw, struct CHANNEL *chan, acetables *g_ape)
 void post_raw_channel_restricted(RAW *raw, struct CHANNEL *chan, USERS *ruser, acetables *g_ape)
 {
 	userslist *list;
-	
+
 	if (chan == NULL || raw == NULL || chan->head == NULL) {
 		return;
 	}
 	list = chan->head;
-	
+
 	while (list) {
 		if (list->userinfo != ruser) {
 			post_raw(raw, list->userinfo, g_ape);
@@ -187,7 +187,7 @@ void proxy_post_raw(RAW *raw, ape_proxy *proxy, acetables *g_ape)
 {
 	ape_proxy_pipe *to = proxy->to;
 	transpipe *pipe;
-	
+
 	while (to != NULL) {
 		pipe = get_pipe(to->pipe, g_ape);
 		if (pipe != NULL && pipe->type == USER_PIPE) {
@@ -204,9 +204,9 @@ void proxy_post_raw(RAW *raw, ape_proxy *proxy, acetables *g_ape)
 int post_raw_pipe(RAW *raw, const char *pipe, acetables *g_ape)
 {
 	transpipe *spipe;
-	
+
 	if ((spipe = get_pipe(pipe, g_ape)) != NULL) {
-		
+
 		if (spipe->type == CHANNEL_PIPE) {
 			post_raw_channel(raw, spipe->pipe, g_ape);
 			return 1;
@@ -224,7 +224,7 @@ int post_to_pipe(json_item *jlist, const char *rawname, const char *pipe, subuse
 	transpipe *recver = get_pipe_strict(pipe, sender, g_ape);
 	json_item *jlist_copy = NULL;
 	RAW *newraw;
-	
+
 	if (sender != NULL) {
 		if (recver == NULL) {
 			send_error(sender, "UNKNOWN_PIPE", "109", g_ape);
@@ -233,14 +233,14 @@ int post_to_pipe(json_item *jlist, const char *rawname, const char *pipe, subuse
 		json_set_property_objN(jlist, "from", 4, get_json_object_user(sender));
 
 	}
-	
+
 	if (sender != NULL && sender->nsub > 1) {
 		jlist_copy = json_item_copy(jlist, NULL);
-	
+
 		json_set_property_objN(jlist_copy, "pipe", 4, get_json_object_pipe(recver));
 		newraw = forge_raw(rawname, jlist_copy);
 		post_raw_restricted(newraw, sender, from, g_ape);
-	}	
+	}
 	switch(recver->type) {
 		case USER_PIPE:
 			json_set_property_objN(jlist, "pipe", 4, get_json_object_user(sender));
@@ -261,7 +261,7 @@ int post_to_pipe(json_item *jlist, const char *rawname, const char *pipe, subuse
 		default:
 			break;
 	}
-		
+
 	return 1;
 }
 
@@ -287,94 +287,93 @@ int send_raw_inline(ape_socket *client, transport_t transport, RAW *raw, acetabl
 			finish &= http_send_headers(NULL, HEADER_DEFAULT, HEADER_DEFAULT_LEN, client, g_ape);
 			break;
 	}
-	
+
 	if (properties != NULL && properties->padding.left.val != NULL) {
 		finish &= sendbin(client->fd, properties->padding.left.val, properties->padding.left.len, 0, g_ape);
-	}	
-
+	}
 
 	if (transport == TRANSPORT_WEBSOCKET_IETF) {
-	    websocket_state *websocket = client->parser.data;
-	    char payload_head[32] = { websocket->version == WS_IETF_06 ? 0x84 : 0x81 };
-	    int payload_size = raw->len+2; /* TODO: fragmentation? */
-	    int payload_length = 0;
-	    
-	    if (payload_size <= 125) {
-	        payload_head[1] = (unsigned char)payload_size & 0x7F;
-	        payload_length = 2;
-	    } else if (payload_size <= 65535) {
-	        unsigned short int s = htons(payload_size);
-	        payload_head[1] = 126;
-	        
-	        memcpy(&payload_head[2], &s, 2);
-	        
-	        payload_length = 4;
-	    } else if (payload_size <= 0xFFFFFFFF) {
-	        unsigned int s = htonl(payload_size);
-	        
-	        payload_head[1] = 127;
-	        payload_head[2] = 0;
-	        payload_head[3] = 0;
-	        payload_head[4] = 0;
-	        payload_head[5] = 0;
-	        
-            memcpy(&payload_head[6], &s, 4);
+		websocket_state *websocket = client->parser.data;
+		char payload_head[32] = { websocket->version == WS_IETF_06 ? 0x84 : 0x81 };
+		int payload_size = raw->len+2; /* TODO: fragmentation? */
+		int payload_length = 0;
 
-	        payload_length = 10;
-	    }
-        
-        finish &= sendbin(client->fd, payload_head, payload_length, 0, g_ape);        
+		if (payload_size <= 125) {
+			payload_head[1] = (unsigned char)payload_size & 0x7F;
+			payload_length = 2;
+		} else if (payload_size <= 65535) {
+			unsigned short int s = htons(payload_size);
+			payload_head[1] = 126;
+
+			memcpy(&payload_head[2], &s, 2);
+
+			payload_length = 4;
+		} else if (payload_size <= 0xFFFFFFFF) {
+			unsigned int s = htonl(payload_size);
+
+			payload_head[1] = 127;
+			payload_head[2] = 0;
+			payload_head[3] = 0;
+			payload_head[4] = 0;
+			payload_head[5] = 0;
+
+			memcpy(&payload_head[6], &s, 4);
+
+			payload_length = 10;
+		}
+
+		finish &= sendbin(client->fd, payload_head, payload_length, 0, g_ape);
 	}
-	
+
 	finish &= sendbin(client->fd, "[", 1, 0, g_ape);
-	
+
 	finish &= sendbin(client->fd, raw->data, raw->len, 0, g_ape);
-	
+
 	finish &= sendbin(client->fd, "]", 1, 0, g_ape);
-	
+
 	if (properties != NULL && properties->padding.right.val != NULL) {
 		finish &= sendbin(client->fd, properties->padding.right.val, properties->padding.right.len, 0, g_ape);
 	}
-	
+
 	free_raw(raw);
-	
+
 	return finish;
 }
 
 /*
-    pre compute the payload size
-    TODO: Do that while adding raws to list
+	pre compute the payload size
+	TODO: Do that while adding raws to list
 */
 static unsigned int raws_size(subuser *user)
 {
-    struct _raw_pool *pool;
-    int state = 0;
-    unsigned int size = 1; /* 1 for the first |[| */
-    
+	struct _raw_pool *pool;
+	int state = 0;
+	unsigned int size = 1; /* 1 for the first |[| */
+
 	if (user->raw_pools.nraw == 0) {
 		return 0;
 	}
-	
+
 	if (user->raw_pools.high.nraw) {
 		pool = user->raw_pools.high.rawfoot->prev;
 	} else {
 		pool = user->raw_pools.low.rawhead;
 		state = 1;
-	}    
+	}
 	while (pool->raw != NULL) {
 		struct _raw_pool *pool_next = (state ? pool->next : pool->prev);
-		
+
 		size +=  pool->raw->len + 1; /* 1 for trailing |,| or |]| */
 
 		pool = pool_next;
-		
+
 		if ((pool == NULL || pool->raw == NULL) && !state) {
 			pool = user->raw_pools.low.rawhead;
 			state = 1;
 		}
 	}
-    
-    return size;
+
+	return size;
 }
 
 /*
@@ -391,12 +390,12 @@ int send_raws(subuser *user, acetables *g_ape)
 	}
 
 	PACK_TCP(user->client->fd); /* Activate TCP_CORK */
-	
+
 	properties = transport_get_properties(user->user->transport, g_ape);
-	
+
 	if (!user->headers.sent) {
 		user->headers.sent = 1;
-		
+
 		switch(user->user->transport) {
 			case TRANSPORT_XHRSTREAMING:
 				finish &= http_send_headers(user->headers.content, HEADER_XHR, HEADER_XHR_LEN, user->client, g_ape);
@@ -411,9 +410,9 @@ int send_raws(subuser *user, acetables *g_ape)
 				finish &= http_send_headers(user->headers.content, HEADER_DEFAULT, HEADER_DEFAULT_LEN, user->client, g_ape);
 				break;
 		}
-		
+
 	}
-	
+
 	if (properties != NULL && properties->padding.left.val != NULL) {
 		finish &= sendbin(user->client->fd, properties->padding.left.val, properties->padding.left.len, 0, g_ape);
 	}
@@ -424,43 +423,43 @@ int send_raws(subuser *user, acetables *g_ape)
 		pool = user->raw_pools.low.rawhead;
 		state = 1;
 	}
-	
+
 	if (user->user->transport == TRANSPORT_WEBSOCKET_IETF) {
-	    websocket_state *websocket = user->client->parser.data;
-	    char payload_head[32] = { websocket->version == WS_IETF_06 ? 0x84 : 0x81 };
+		websocket_state *websocket = user->client->parser.data;
+		char payload_head[32] = { websocket->version == WS_IETF_06 ? 0x84 : 0x81 };
 
-	    int payload_size = raws_size(user); /* TODO: fragmentation? */
-	    int payload_length = 0;
-	    
-	    if (payload_size <= 125) {
-	        payload_head[1] = (unsigned char)payload_size & 0x7F;
-	        payload_length = 2;
-	    } else if (payload_size <= 65535) {
-	        unsigned short int s = htons(payload_size);
-	        payload_head[1] = 126;
-	        
-	        memcpy(&payload_head[2], &s, 2);
-	        
-	        payload_length = 4;
-	    } else if (payload_size <= 0xFFFFFFFF) {
-	        unsigned int s = htonl(payload_size);
-	        
-	        payload_head[1] = 127;
-	        payload_head[2] = 0;
-	        payload_head[3] = 0;
-	        payload_head[4] = 0;
-	        payload_head[5] = 0;
-	        
-            memcpy(&payload_head[6], &s, 4);
+		int payload_size = raws_size(user); /* TODO: fragmentation? */
+		int payload_length = 0;
 
-	        payload_length = 10;
-	    }
-        
-        finish &= sendbin(user->client->fd, payload_head, payload_length, 0, g_ape);
+		if (payload_size <= 125) {
+			payload_head[1] = (unsigned char)payload_size & 0x7F;
+			payload_length = 2;
+		} else if (payload_size <= 65535) {
+			unsigned short int s = htons(payload_size);
+			payload_head[1] = 126;
+
+			memcpy(&payload_head[2], &s, 2);
+
+			payload_length = 4;
+		} else if (payload_size <= 0xFFFFFFFF) {
+			unsigned int s = htonl(payload_size);
+
+			payload_head[1] = 127;
+			payload_head[2] = 0;
+			payload_head[3] = 0;
+			payload_head[4] = 0;
+			payload_head[5] = 0;
+
+			memcpy(&payload_head[6], &s, 4);
+
+			payload_length = 10;
+		}
+
+		finish &= sendbin(user->client->fd, payload_head, payload_length, 0, g_ape);
 
 	}
 	finish &= sendbin(user->client->fd, "[", 1, 0, g_ape);
-		
+
 	while (pool->raw != NULL) {
 		struct _raw_pool *pool_next = (state ? pool->next : pool->prev);
 
@@ -470,32 +469,32 @@ int send_raws(subuser *user, acetables *g_ape)
 			finish &= sendbin(user->client->fd, ",", 1, 0, g_ape);
 		} else {
 			finish &= sendbin(user->client->fd, "]", 1, 0, g_ape);
-			
+
 			if (properties != NULL && properties->padding.right.val != NULL) {
 				finish &= sendbin(user->client->fd, properties->padding.right.val, properties->padding.right.len, 0, g_ape);
 			}
 		}
-		
+
 		free_raw(pool->raw);
 		pool->raw = NULL;
-		
+
 		pool = pool_next;
-		
+
 		if ((pool == NULL || pool->raw == NULL) && !state) {
 			pool = user->raw_pools.low.rawhead;
 			state = 1;
 		}
 	}
-	
+
 	user->raw_pools.high.nraw = 0;
 	user->raw_pools.low.nraw = 0;
 	user->raw_pools.nraw = 0;
-	
+
 	user->raw_pools.high.rawfoot = user->raw_pools.high.rawhead;
 	user->raw_pools.low.rawfoot = user->raw_pools.low.rawhead;
-	
+
 	FLUSH_TCP(user->client->fd);
-	
+
 	return finish;
 }
 
@@ -503,31 +502,31 @@ struct _raw_pool *init_raw_pool(int n)
 {
 	int i;
 	struct _raw_pool *pool = xmalloc(sizeof(*pool) * n);
-	
+
 	for (i = 0; i < n; i++) {
 		pool[i].raw = NULL;
 		pool[i].next = (i == n-1 ? NULL : &pool[i+1]);
 		pool[i].prev = (i == 0 ? NULL : &pool[i-1]);
 		pool[i].start = (i == 0);
 	}
-	
+
 	return pool;
 }
 
 struct _raw_pool *expend_raw_pool(struct _raw_pool *ptr, int n)
 {
 	struct _raw_pool *pool = init_raw_pool(n);
-	
+
 	ptr->next = pool;
 	pool->prev = ptr;
-	
+
 	return pool;
 }
 
 void destroy_raw_pool(struct _raw_pool *ptr)
 {
 	struct _raw_pool *pool = ptr, *tpool = NULL;
-	
+
 	while (pool != NULL) {
 		if (pool->raw != NULL) {
 			free_raw(pool->raw);

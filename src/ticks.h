@@ -36,7 +36,7 @@ struct _ticks_callback
 
 	void *func;
 	void *params;
-	
+
 	struct _ticks_callback *next;
 };
 

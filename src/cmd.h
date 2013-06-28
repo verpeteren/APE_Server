@@ -54,7 +54,6 @@ void do_register(acetables *g_ape);
 
 /* Flag returned by cmd callback */
 
-
 #define RETURN_LOGIN 		0x01
 #define RETRUN_SESSID 		0x02
 #define RETURN_NULL			0x04
@@ -72,17 +71,17 @@ struct _callbackp
 	ape_socket *client;
 	json_item *param;
 	struct _http_header_line *hlines;
-	
+
 	struct USERS *call_user;
-	
+
 	const char *ip;
 	const char *host;
 	const char *cmd;
 	void *data;
-	
+
 	subuser *call_subuser;
 	acetables *g_ape;
-	
+
 	transport_t transport;
 	int chl;
 };

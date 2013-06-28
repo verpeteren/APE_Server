@@ -49,13 +49,13 @@ static void ape_disconnect(ape_socket *co, acetables *g_ape)
 {
 	subuser *sub = (subuser *)(co->attach);
 	if (sub != NULL) {
-		
+
 		if (sub->wait_for_free == 1) {
 			free(sub);
 			co->attach = NULL;
-			return;				
+			return;
 		}
-		
+
 		if (co->fd == sub->client->fd) {
 			sub->headers.sent = 0;
 			sub->state = ADIED;
@@ -68,7 +68,7 @@ static void ape_disconnect(ape_socket *co, acetables *g_ape)
 				}
 			}
 		}
-		
+
 	}
 }
 
@@ -88,7 +88,7 @@ int servers_init(acetables *g_ape)
 	main_server->callbacks.on_disconnect = ape_disconnect;
 	main_server->callbacks.on_data_completly_sent = ape_sent;
 	main_server->callbacks.on_accept = ape_onaccept;
-	
+
 	return main_server->fd;
 }
 

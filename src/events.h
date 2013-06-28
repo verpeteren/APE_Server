@@ -54,9 +54,9 @@ typedef enum {
 
 #ifdef USE_SELECT_HANDLER
 typedef struct {
-  int  fd;
-  char read:2;		/* First bit: 	in use */
-  char write:2;		/* Second bit: 	pending data */
+	int  fd;
+	char read:2;		/* First bit: 	in use */
+	char write:2;		/* Second bit: 	pending data */
 } select_fd_t;
 #endif
 
@@ -71,7 +71,7 @@ struct _fdevent {
 	void (*growup)(struct _fdevent *);
 	int (*revent)(struct _fdevent *, int);
 	int (*reload)(struct _fdevent *);
-	
+
 	/* Specifics values */
 	#ifdef USE_KQUEUE_HANDLER
 	struct kevent *events;
@@ -81,10 +81,10 @@ struct _fdevent {
 	struct epoll_event *events;
 	int epoll_fd;
 	#endif
-        #ifdef USE_SELECT_HANDLER
-        select_fd_t fds[MAX_SELECT_FDS];
-        select_fd_t **events; /* Pointers into fds */
-        #endif
+		#ifdef USE_SELECT_HANDLER
+		select_fd_t fds[MAX_SELECT_FDS];
+		select_fd_t **events; /* Pointers into fds */
+		#endif
 
 	fdevent_handler_t handler;
 };
@@ -104,3 +104,4 @@ int event_epoll_init(struct _fdevent *ev);
 int event_select_init(struct _fdevent *ev);
 
 #endif
+

@@ -22,10 +22,10 @@
 #ifndef _SOCK_H
 #define _SOCK_H
 
-#include <sys/types.h> 
-#include <netinet/in.h> 
+#include <sys/types.h>
+#include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <sys/socket.h> 
+#include <sys/socket.h>
 #include <sys/wait.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -74,7 +74,7 @@ unsigned int sockroutine(acetables *g_ape);
 #define QUIT(x, g_ape) \
 	sendbin(x, HEADER_DEFAULT, HEADER_DEFAULT_LEN, 0, g_ape);\
 	sendbin(x, "QUIT", 4, 0, g_ape)
-	
+
 #ifdef TCP_CORK
 	#define PACK_TCP(fd) \
 		do { \
@@ -93,3 +93,4 @@ unsigned int sockroutine(acetables *g_ape);
 #endif
 
 #endif
+

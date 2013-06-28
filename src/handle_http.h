@@ -35,7 +35,7 @@ typedef struct clientget
 	const char *ip_get;
 	const char *get;
 	const char *host;
-} clientget ;
+} clientget;
 
 enum {
 	CONNECT_SHUTDOWN = 0,

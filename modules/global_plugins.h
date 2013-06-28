@@ -19,4 +19,3 @@
 
 /* global_plugins.h */
 
-

@@ -29,18 +29,18 @@
 inline void process_tick(acetables *g_ape)
 {
 	struct _ticks_callback *timers = g_ape->timers.timers;
-	
+
 	while (timers != NULL && --timers->delta <= 0) {
 		int lastcall = (timers->times > 0 && --timers->times == 0);
 		void (*func_timer)(void *param, int *) = timers->func;
-		
+
 		func_timer(timers->params, &lastcall);
 
 		g_ape->timers.timers = timers->next;
 
 		if (!lastcall) {
 			struct _ticks_callback *new_timer = add_timeout(timers->ticks_need, timers->func, timers->params, g_ape);
-			
+
 			g_ape->timers.ntimers--;
 			new_timer->identifier = timers->identifier;
 			new_timer->times = timers->times;
@@ -62,7 +62,7 @@ struct _ticks_callback *add_timeout(unsigned int msec, void *callback, void *par
 
 	struct _ticks_callback *new_timer;
 	new_timer = xmalloc(sizeof(*new_timer));
-	
+
 	new_timer->ticks_need = msec;
 	new_timer->delta = msec;
 	new_timer->times = 1;
@@ -89,7 +89,7 @@ struct _ticks_callback *add_timeout(unsigned int msec, void *callback, void *par
 	} else {
 		g_ape->timers.timers = new_timer;
 	}
-	
+
 	g_ape->timers.ntimers++;
 
 	return new_timer;
@@ -101,23 +101,22 @@ struct _ticks_callback *add_timeout(unsigned int msec, void *callback, void *par
 struct _ticks_callback *add_periodical(unsigned int msec, int times, void *callback, void *params, acetables *g_ape)
 {
 	struct _ticks_callback *new_timer = add_timeout(msec, callback, params, g_ape);
-
 	new_timer->times = times;
-	
+
 	return new_timer;
 }
 
 struct _ticks_callback *get_timer_identifier(unsigned int identifier, acetables *g_ape)
 {
 	struct _ticks_callback *timers = g_ape->timers.timers;
-	
+
 	while (timers != NULL) {
 		if (timers->identifier == identifier) {
 			return timers;
 		}
 		timers = timers->next;
 	}
-	
+
 	return NULL;
 }
 
@@ -125,7 +124,7 @@ void del_timer_identifier(unsigned int identifier, acetables *g_ape)
 {
 	struct _ticks_callback *timers = g_ape->timers.timers;
 	struct _ticks_callback *prev = NULL;
-	
+
 	while (timers != NULL) {
 		if (timers->identifier == identifier) {
 			if (prev != NULL) {

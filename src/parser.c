@@ -39,18 +39,18 @@ static void parser_destroy_http(ape_parser *http_parser)
 static void parser_ready_http(ape_parser *http_parser, acetables *g_ape)
 {
 	ape_socket *co = http_parser->socket;
-	
+
 	co->attach = checkrecv(co, g_ape);
 }
 
 static void parser_ready_websocket(ape_parser *websocket_parser, acetables *g_ape)
 {
 	ape_socket *co = websocket_parser->socket;
-	
+
 	subuser *tmp = co->attach;
-	
+
 	co->attach = checkrecv_websocket(co, g_ape);
-	
+
 	if (tmp != NULL && co->attach != tmp) {
 	    tmp->state = ADIED;
 	}
@@ -60,12 +60,12 @@ ape_parser parser_init_http(ape_socket *co)
 {
 	ape_parser http_parser;
 	http_state *http;
-	
+
 	http_parser.ready = 0;
 	http_parser.data = xmalloc(sizeof(struct _http_state));
-	
+
 	http = http_parser.data;
-	
+
 	http->hlines = NULL;
 	http->pos = 0;
 	http->contentlength = -1;
@@ -82,15 +82,14 @@ ape_parser parser_init_http(ape_socket *co)
 	http_parser.destroy = parser_destroy_http;
 	http_parser.onready = parser_ready_http;
 	http_parser.socket = co;
-	
+
 	return http_parser;
 }
-
 
 static void parser_destroy_stream(ape_parser *stream_parser)
 {
 	websocket_state *websocket = stream_parser->data;
-	
+
 	free_header_line(websocket->http->hlines);
 
 	stream_parser->data = NULL;
@@ -98,19 +97,19 @@ static void parser_destroy_stream(ape_parser *stream_parser)
 	stream_parser->parser_func = NULL;
 	stream_parser->destroy = NULL;
 	stream_parser->socket = NULL;
-	
+
 	free(websocket->http);
-	free(websocket);	
+	free(websocket);
 }
 
 ape_parser parser_init_stream(ape_socket *co)
 {
 	ape_parser stream_parser;
 	websocket_state *websocket;
-	
+
 	stream_parser.ready = 0;
 	stream_parser.data = xmalloc(sizeof(struct _websocket_state));
-	
+
 	websocket = stream_parser.data;
 	websocket->offset = 0;
 	websocket->data = NULL;
@@ -127,8 +126,8 @@ ape_parser parser_init_stream(ape_socket *co)
 	stream_parser.onready = parser_ready_websocket;
 	stream_parser.destroy = parser_destroy_stream;
 	stream_parser.socket = co;
-	
-	return stream_parser;	
+
+	return stream_parser;
 }
 
 void parser_destroy(ape_parser *parser)

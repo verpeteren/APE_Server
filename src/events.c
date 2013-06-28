@@ -32,12 +32,12 @@ int events_init(acetables *g_ape, int *basemem)
 			break;
 		case EVENT_KQUEUE:
 			return event_kqueue_init(g_ape->events);
-   	        case EVENT_SELECT:
-		        return event_select_init(g_ape->events);
+		case EVENT_SELECT:
+			return event_select_init(g_ape->events);
 		default:
 			break;
 	}
-	
+
 	return -1;
 }
 
@@ -58,17 +58,17 @@ int events_add(struct _fdevent *ev, int fd, int bitadd)
 
 int events_remove(struct _fdevent *ev, int fd)
 {
-  return ev->remove(ev, fd);
+	return ev->remove(ev, fd);
 }
 
 int events_poll(struct _fdevent *ev, int timeout_ms)
 {
 	int nfds;
-	
+
 	if ((nfds = ev->poll(ev, timeout_ms)) == -1) {
 		return -1;
 	}
-	
+
 	return nfds;
 }
 
@@ -91,3 +91,4 @@ int events_reload(struct _fdevent *ev)
 {
 	return ev->reload(ev);
 }
+

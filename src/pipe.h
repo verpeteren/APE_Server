@@ -37,7 +37,7 @@ typedef struct _pipe_link pipe_link;
 struct _pipe_link {
 	struct _transpipe *plink;
 	struct _pipe_link *next;
-	
+
 	void (*on_unlink)(struct _transpipe *, struct _transpipe *, acetables *);
 };
 
@@ -46,14 +46,14 @@ struct _transpipe
 {
 	void *pipe;
 	void *data;
-	
+
 	struct _pipe_link *link;
 	struct _extend *properties;
 
 	void (*on_send)(struct _transpipe *, struct USERS *, json_item *, acetables *);
-	
+
 	int type;
-	
+
 	char pubid[33];
 };
 
@@ -69,4 +69,5 @@ void unlink_all_pipe(transpipe *origin, acetables *g_ape);
 json_item *get_json_object_pipe(transpipe *pipe);
 json_item *get_json_object_pipe_custom(transpipe *pipe);
 #endif
+
 

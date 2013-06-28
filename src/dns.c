@@ -48,16 +48,16 @@ static enum dns_class qcls = DNS_C_IN;
 
 static struct query *query_new(const char *name, const unsigned char *dn, enum dns_type qtyp) {
 	struct query *q = xmalloc(sizeof(*q));
-	
+
 	unsigned l = dns_dnlen(dn);
 	unsigned char *cdn = xmalloc(l);
-	
+
 	memcpy(cdn, dn, l);
-	
+
 	q->name = xstrdup(name);
 	q->dn = cdn;
 	q->qtyp = qtyp;
-	
+
 	return q;
 }
 
@@ -84,100 +84,100 @@ static void query_free(struct query *q) {
 
 
 static void dnscb(struct dns_ctx *ctx, void *result, void *data) {
-  int r = dns_status(ctx);
-  struct query *q = data;
-  struct dns_parse p;
-  struct dns_rr rr;
-  unsigned nrr;
-  unsigned char dn[DNS_MAXDN];
-  const unsigned char *pkt, *cur, *end;
+	int r = dns_status(ctx);
+	struct query *q = data;
+	struct dns_parse p;
+	struct dns_rr rr;
+	unsigned nrr;
+	unsigned char dn[DNS_MAXDN];
+	const unsigned char *pkt, *cur, *end;
 
-  if (!result) {
-    return;
-  }
+	if (!result) {
+		return;
+	}
 
-  pkt = result; end = pkt + r; cur = dns_payload(pkt);
-  dns_getdn(pkt, &cur, end, dn, sizeof(dn));
-  dns_initparse(&p, NULL, pkt, cur, end);
-  p.dnsp_qcls = p.dnsp_qtyp = 0;
-  nrr = 0;
+	pkt = result; end = pkt + r; cur = dns_payload(pkt);
+	dns_getdn(pkt, &cur, end, dn, sizeof(dn));
+	dns_initparse(&p, NULL, pkt, cur, end);
+	p.dnsp_qcls = p.dnsp_qtyp = 0;
+	nrr = 0;
 
-  while((r = dns_nextrr(&p, &rr)) > 0) {
-    if (!dns_dnequal(dn, rr.dnsrr_dn)) continue;
-    if ((qcls == DNS_C_ANY || qcls == rr.dnsrr_cls) &&
-        (q->qtyp == DNS_T_ANY || q->qtyp == rr.dnsrr_typ))
-      ++nrr;
-    else if (rr.dnsrr_typ == DNS_T_CNAME && !nrr) {
-      if (dns_getdn(pkt, &rr.dnsrr_dptr, end,
-                    p.dnsp_dnbuf, sizeof(p.dnsp_dnbuf)) <= 0 ||
-          rr.dnsrr_dptr != rr.dnsrr_dend) {
-        r = DNS_E_PROTOCOL;
-        break;
-      }
-      else {
-        dns_dntodn(p.dnsp_dnbuf, dn, sizeof(dn));
-      }
-    }
-  }
-  if (!r && !nrr)
-    r = DNS_E_NODATA;
-  if (r < 0) {
-    free(result);
-    return;
-  }
-  dns_rewind(&p, NULL);
-  p.dnsp_qtyp = q->qtyp == DNS_T_ANY ? 0 : q->qtyp;
-  p.dnsp_qcls = qcls == DNS_C_ANY ? 0 : qcls;
-  while(dns_nextrr(&p, &rr)) {
+	while((r = dns_nextrr(&p, &rr)) > 0) {
+		if (!dns_dnequal(dn, rr.dnsrr_dn)) continue;
+		if ((qcls == DNS_C_ANY || qcls == rr.dnsrr_cls) &&
+				(q->qtyp == DNS_T_ANY || q->qtyp == rr.dnsrr_typ))
+			++nrr;
+		else if (rr.dnsrr_typ == DNS_T_CNAME && !nrr) {
+			if (dns_getdn(pkt, &rr.dnsrr_dptr, end,
+										p.dnsp_dnbuf, sizeof(p.dnsp_dnbuf)) <= 0 ||
+					rr.dnsrr_dptr != rr.dnsrr_dend) {
+				r = DNS_E_PROTOCOL;
+				break;
+			}
+			else {
+				dns_dntodn(p.dnsp_dnbuf, dn, sizeof(dn));
+			}
+		}
+	}
+	if (!r && !nrr)
+		r = DNS_E_NODATA;
+	if (r < 0) {
+		free(result);
+		return;
+	}
+	dns_rewind(&p, NULL);
+	p.dnsp_qtyp = q->qtyp == DNS_T_ANY ? 0 : q->qtyp;
+	p.dnsp_qcls = qcls == DNS_C_ANY ? 0 : qcls;
+	while(dns_nextrr(&p, &rr)) {
 	const unsigned char *dptr = rr.dnsrr_dptr;
-	if (rr.dnsrr_dsz == 4)  {
+	if (rr.dnsrr_dsz == 4)	{
 		char *ip = xmalloc(sizeof(char) * 16);
 		sprintf(ip, "%d.%d.%d.%d", dptr[0], dptr[1], dptr[2], dptr[3]);
-		
+
 		q->callback(ip, q->data, q->g_ape);
 		break;
 	}
-  }
+	}
 
-  free(result);
+	free(result);
   query_free(q);
 }
 
 
 void ape_gethostbyname(char *name, void (*callback)(char *, void *, acetables *), void *data, acetables *g_ape)
 {
-   
-    struct in_addr addr;
+
+	struct in_addr addr;
 	struct query *q;
-    unsigned char dn[DNS_MAXDN];
+	unsigned char dn[DNS_MAXDN];
 	int abs = 0;
 	enum dns_type l_qtyp = 0;
 
-    if (dns_pton(AF_INET, name, &addr) > 0) {
+	if (dns_pton(AF_INET, name, &addr) > 0) {
 		/* We have an IP */
 		callback(xstrdup(name), data, g_ape);
 		return;
-    } else if (!dns_ptodn(name, strlen(name), dn, sizeof(dn), &abs)) {
+	} else if (!dns_ptodn(name, strlen(name), dn, sizeof(dn), &abs)) {
 		/* We have an invalid domain name */
 		return;
 	} else {
 		l_qtyp = DNS_T_A;
 	}
-	
+
 	q = query_new(name, dn, l_qtyp);
-	
+
 	q->data = data;
 	q->callback = callback;
 	q->g_ape = g_ape;
-	
+
 	if (abs) {
 		abs = DNS_NOSRCH;
 	}
-    if (!dns_submit_dn(NULL, dn, qcls, l_qtyp, abs, 0, dnscb, q)) {
+	if (!dns_submit_dn(NULL, dn, qcls, l_qtyp, abs, 0, dnscb, q)) {
 		query_free(q);
 		return;
 	}
-	
+
 	dns_timeouts(NULL, -1, 0);
 }
 
@@ -192,7 +192,7 @@ void ape_dns_init(acetables *g_ape)
 	int sock = dns_init(NULL, 1);
 
 	prepare_ape_socket(sock, g_ape);
-	
+
 	g_ape->co[sock]->fd = sock;
 	g_ape->co[sock]->stream_type = STREAM_DELEGATE;
 
@@ -203,3 +203,4 @@ void ape_dns_init(acetables *g_ape)
 
 	add_periodical(50, 0, ape_dns_timeout, NULL, g_ape);
 }
+

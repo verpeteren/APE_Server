@@ -27,25 +27,25 @@
 static int event_epoll_add(struct _fdevent *ev, int fd, int bitadd)
 {
 	struct epoll_event kev;
-	
+
 	kev.events = EPOLLET | EPOLLPRI;
-	
+
 	if (bitadd & EVENT_READ) {
-		kev.events |= EPOLLIN; 
+		kev.events |= EPOLLIN;
 	}
-	
+
 	if (bitadd & EVENT_WRITE) {
 		kev.events |= EPOLLOUT;
 	}
-	
+
 	memset(&kev.data, 0, sizeof(kev.data));
 
 	kev.data.fd = fd;
-		
+
 	if (epoll_ctl(ev->epoll_fd, EPOLL_CTL_ADD, fd, &kev) == -1) {
 		return -1;
 	}
-	
+
 	return 1;
 }
 
@@ -61,7 +61,7 @@ static int event_epoll_poll(struct _fdevent *ev, int timeout_ms)
 	if ((nfds = epoll_wait(ev->epoll_fd, ev->events, *ev->basemem, timeout_ms)) == -1) {
 		return -1;
 	}
-	
+
 	return nfds;
 }
 
@@ -78,14 +78,14 @@ static void event_epoll_growup(struct _fdevent *ev)
 static int event_epoll_revent(struct _fdevent *ev, int i)
 {
 	int bitret = 0;
-	
+
 	if (ev->events[i].events & EPOLLIN) {
 		bitret = EVENT_READ;
 	}
 	if (ev->events[i].events & EPOLLOUT) {
 		bitret |= EVENT_WRITE;
 	}
-	
+
 	return bitret;
 }
 
@@ -100,8 +100,8 @@ int event_epoll_reload(struct _fdevent *ev)
 	if ((ev->epoll_fd = epoll_create(1)) == -1) {
 		return 0;
 	}
-	
-	return 1;	
+
+	return 1;
 }
 
 int event_epoll_init(struct _fdevent *ev)
@@ -111,7 +111,7 @@ int event_epoll_init(struct _fdevent *ev)
 	}
 
 	ev->events = xmalloc(sizeof(struct epoll_event) * (*ev->basemem));
-	
+
 	ev->add = event_epoll_add;
 	ev->remove = event_epoll_remove;
 	ev->poll = event_epoll_poll;
@@ -119,7 +119,7 @@ int event_epoll_init(struct _fdevent *ev)
 	ev->growup = event_epoll_growup;
 	ev->revent = event_epoll_revent;
 	ev->reload = event_epoll_reload;
-	
+
 	return 1;
 }
 
@@ -129,4 +129,5 @@ int event_epoll_init(struct _fdevent *ev)
 	return 0;
 }
 #endif
+
 

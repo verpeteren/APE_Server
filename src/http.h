@@ -32,12 +32,12 @@ struct _http_headers_fields
 		char val[32];
 		int len;
 	} key;
-	
+
 	struct {
 		char *val;
 		int len;
 	} value;
-	
+
 	struct _http_headers_fields *next;
 };
 
@@ -49,7 +49,7 @@ struct _http_headers_response
 		char val[64];
 		int len;
 	} detail;
-	
+
 	struct _http_headers_fields *fields;
 	struct _http_headers_fields *last;
 };
@@ -69,12 +69,12 @@ struct _http_header_line
 		char val[64];
 		unsigned int len;
 	} key;
-	
+
 	struct {
 		char val[1024];
 		unsigned int len;
 	} value;
-	
+
 	struct _http_header_line *next;
 };
 
@@ -88,4 +88,5 @@ void free_header_line(struct _http_header_line *line);
 char *get_header_line(struct _http_header_line *lines, const char *key);
 
 #endif
+
 

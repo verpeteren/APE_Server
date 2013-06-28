@@ -28,16 +28,15 @@ typedef struct HTBL
 	struct _htbl_item **table;
 } HTBL;
 
-
 typedef struct _htbl_item
 {
 	char *key;
 	void *addrs;
 	struct _htbl_item *next;
-	
+
 	struct _htbl_item *lnext;
 	struct _htbl_item *lprev;
-	
+
 } HTBL_ITEM;
 
 HTBL *hashtbl_init();

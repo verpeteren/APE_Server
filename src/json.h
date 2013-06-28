@@ -25,7 +25,6 @@
 
 #include "json_parser.h"
 
-
 typedef char* jpath;
 
 enum {
@@ -38,16 +37,16 @@ typedef struct json {
 		char *buf;
 		size_t len;
 	} name;
-	
+
 	struct {
 		char *buf;
 		size_t len;
 	} value;
-	
+
 	struct json_childs *jchilds;
-	
+
 	struct json *jfather;
-	
+
 	struct json *next;
 	struct json *prev;
 } json;
@@ -78,27 +77,27 @@ typedef struct _json_item {
 		struct _json_item *head;
 		json_child_t type;
 	} jchild;
-	
+
 	struct {
-        	char *val;
-        	size_t len;
+		char *val;
+		size_t len;
 	} key;
-	
+
 	struct _json_item *father;
 	struct _json_item *next;
-			
+
 	int type;
-	
+
 } json_item;
 
 
 typedef struct _json_context {
 	int key_under;
 	int start_depth;
-		
+
 	json_item *head;
 	json_item *current_cx;
-	
+
 } json_context;
 
 
@@ -152,20 +151,20 @@ void json_aff(json_item *cx, int depth);
 /* Iterate over a JSON Object */
 #define JFOREACH_K(fkey, outkey, outvar) \
 		for (json_params = json_lookup(callbacki->param, #fkey), json_iterator = 0; json_params != NULL; json_params = json_params->next) \
-			if ((outvar = (char *)json_params->jval.vu.str.value) != NULL && (outkey = (char *)json_params->key.val) != NULL && ++json_iterator)		
+			if ((outvar = (char *)json_params->jval.vu.str.value) != NULL && (outkey = (char *)json_params->key.val) != NULL && ++json_iterator)
 
 #define JFOREACH_ELSE \
 	if (json_iterator == 0)
-	
+
 #define JSTR(key) \
 	(char *)(callbacki->param != NULL && (json_params = json_lookup(callbacki->param, #key)) != NULL ? json_params->jval.vu.str.value : NULL)
 
 #define JINT(key) \
 	(int)(callbacki->param != NULL && (json_params = json_lookup(callbacki->param, #key)) != NULL ? json_params->jval.vu.integer_value : 0)
-	
+
 #define JFLOAT(key) \
 	(callbacki->param != NULL && (json_params = json_lookup(callbacki->param, #key)) != NULL ? json_params->jval.vu.float_value : 0.)
-	
+
 #define JGET_STR(head, key) \
 	json_lookup(head, #key)->jval.vu.str.value
 

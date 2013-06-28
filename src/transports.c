@@ -26,7 +26,7 @@
 struct _transport_open_same_host_p transport_open_same_host(subuser *sub, ape_socket *client, transport_t transport)
 {
 	struct _transport_open_same_host_p ret;
-	
+
 	switch(transport) {
 		case TRANSPORT_LONGPOLLING:
 		case TRANSPORT_JSONP:
@@ -47,7 +47,6 @@ struct _transport_open_same_host_p transport_open_same_host(subuser *sub, ape_so
 			ret.attach = 0;
 			break;
 	}
-	
 	return ret;
 }
 
@@ -65,7 +64,7 @@ void transport_data_completly_sent(subuser *sub, transport_t transport, acetable
 		case TRANSPORT_WEBSOCKET:
 		case TRANSPORT_WEBSOCKET_IETF:
 			break;
-	}	
+	}
 }
 
 struct _transport_properties *transport_get_properties(transport_t transport, acetables *g_ape)
@@ -83,9 +82,9 @@ struct _transport_properties *transport_get_properties(transport_t transport, ac
 			return &(g_ape->transports.sse.properties);
 		case TRANSPORT_WEBSOCKET:
 			return &(g_ape->transports.websocket.properties);
-	    case TRANSPORT_WEBSOCKET_IETF:
-	        return &(g_ape->transports.websocket_ietf.properties);
-	}	
+		case TRANSPORT_WEBSOCKET_IETF:
+			return &(g_ape->transports.websocket_ietf.properties);
+	}
 	return NULL;
 }
 
@@ -93,16 +92,16 @@ void transport_start(acetables *g_ape)
 {
 	char *eval_func = CONFIG_VAL(JSONP, eval_func, g_ape->srv);
 	int len = strlen(eval_func);
-	
+
 	if (len) {
 		g_ape->transports.jsonp.properties.padding.left.val = xmalloc(sizeof(char) * (len + 3));
 		strcpy(g_ape->transports.jsonp.properties.padding.left.val, eval_func);
 		strcat(g_ape->transports.jsonp.properties.padding.left.val, "('");
 		g_ape->transports.jsonp.properties.padding.left.len = len+2;
-		
+
 		g_ape->transports.jsonp.properties.padding.right.val = xstrdup("')");
 		g_ape->transports.jsonp.properties.padding.right.len = 2;
-		
+
 	} else {
 		g_ape->transports.jsonp.properties.padding.left.val = NULL;
 	}
@@ -112,25 +111,25 @@ void transport_start(acetables *g_ape)
 
 	g_ape->transports.xhrstreaming.properties.padding.right.val = xstrdup("\n\n");
 	g_ape->transports.xhrstreaming.properties.padding.right.len = 2;
-	
+
 	g_ape->transports.sse.properties.padding.left.val = xstrdup("Event: ape-event\nData: ");
 	g_ape->transports.sse.properties.padding.left.len = 24;
 
 	g_ape->transports.sse.properties.padding.right.val = xstrdup("\n\n");
 	g_ape->transports.sse.properties.padding.right.len = 2;
-	
+
 	g_ape->transports.websocket.properties.padding.left.val = xstrdup("\x00");
 	g_ape->transports.websocket.properties.padding.left.len = 1;
-	
+
 	g_ape->transports.websocket.properties.padding.right.val = xstrdup("\xFF");
 	g_ape->transports.websocket.properties.padding.right.len = 1;
-	
+
 	g_ape->transports.websocket_ietf.properties.padding.left.val = NULL;
 	g_ape->transports.websocket_ietf.properties.padding.left.len = 0;
-	
+
 	g_ape->transports.websocket_ietf.properties.padding.right.val = NULL;
-	g_ape->transports.websocket_ietf.properties.padding.right.len = 0;		
-	
+	g_ape->transports.websocket_ietf.properties.padding.right.len = 0;
+
 }
 
 void transport_free(acetables *g_ape)

@@ -32,26 +32,26 @@ ace_plugins *loadplugin(char *file)
 	void *hwnd;
 	//ace_plugin_infos *infos;
 	ace_plugins *plug;
-	
+
 	hwnd = dlopen(file, RTLD_LAZY);
-	
+
 	if (!hwnd) {
 		printf("[Module] Failed to load %s [Invalid library] (%s)\n", file, dlerror());
 		return NULL;
 	}
 
 	plug = xmalloc(sizeof(*plug));
-	
+
 	plug->hPlug = hwnd;
-	
+
 	/*
 	plug->conf.file = infos->conf;
 	plug->conf.entry = dlsym(hwnd, "this_config");*/
 
-	
+
 	plug->next = NULL;
 	plug->cb = NULL;
-	
+
 	return plug;
 }
 
@@ -59,22 +59,22 @@ void findandloadplugin(acetables *g_ape)
 {
 	int i;
 	char modules_path[1024];
-	
+
 	sprintf(modules_path, "%s*.so", CONFIG_VAL(Config, modules, g_ape->srv));
-	
+
 	void (*load)(ace_plugins *module);
-	
+
 	glob_t globbuf;
 	glob(modules_path, 0, NULL, &globbuf);
 
-	
+
 	for (i = 0; i < globbuf.gl_pathc; i++) {
 		ace_plugins *pcurrent;
 		pcurrent = loadplugin(globbuf.gl_pathv[i]);
-		
+
 		if (pcurrent != NULL) {
 			ace_plugins *plist = g_ape->plugins;
-			
+
 			load = dlsym(pcurrent->hPlug, "ape_module_init");
 			if (load == NULL) {
 				if (!g_ape->is_daemon) {
@@ -84,28 +84,28 @@ void findandloadplugin(acetables *g_ape)
 				free(pcurrent);
 				continue;
 			}
-			
+
 			memset(&pcurrent->fire, 0, sizeof(pcurrent->fire)); /* unfire all events */
-			
+
 			/* Calling entry point load function */
 			load(pcurrent);
-				
+
 			plugin_read_config(pcurrent, CONFIG_VAL(Config, modules_conf, g_ape->srv), g_ape);
-			
+
 			if (!g_ape->is_daemon) {
 				printf("[Module] [%s] Loading module : %s (%s) - %s\n", pcurrent->modulename, pcurrent->infos->name, pcurrent->infos->version, pcurrent->infos->author);
 			}
 			ape_log(APE_WARN, __FILE__, __LINE__, g_ape, "[Module] [%s] Loading module : %s (%s) - %s", pcurrent->modulename, pcurrent->infos->name, pcurrent->infos->version, pcurrent->infos->author);
 			pcurrent->next = plist;
 			g_ape->plugins = pcurrent;
-			
-			/* Calling init module */		
+
+			/* Calling init module */
 			pcurrent->loader(g_ape);
 
 		}else{
 			ape_log(APE_WARN, __FILE__, __LINE__, g_ape, "[Module] Failed to load %s [Invalid library]", globbuf.gl_pathv[i]);
 		}
-		
+
 	}
 	globfree(&globbuf);
 
@@ -133,16 +133,16 @@ plug_config *plugin_parse_conf(const char *file)
 		return NULL;
 	}
 	plug_config *tmpconf = NULL, *new_conf = NULL;
-	
+
 	while(fgets(lines, 2048, fp)) {
 		int nTok = 0;
-	
+
 		if (*lines == '#' || *lines == '\r' || *lines == '\n' || *lines == '\0') {
 			continue;
 		}
-		
+
 		nTok = explode('=', lines, tkn, 2);
-		
+
 		if (nTok == 1) {
 			new_conf = xmalloc(sizeof(struct _plug_config));
 			new_conf->key = xstrdup(trim(tkn[0]));
@@ -173,7 +173,7 @@ void plugin_read_config(ace_plugins *plug, const char *path, acetables *g_ape)
 char *plugin_get_conf(struct _plug_config *conf, char *key)
 {
 	plug_config *current = conf;
-	
+
 	while(current != NULL) {
 		if (strcmp(current->key, key) == 0) {
 			return current->value;

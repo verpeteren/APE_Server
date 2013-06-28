@@ -49,7 +49,7 @@
 typedef struct _ace_callbacks ace_callbacks;
 
 struct _ace_callbacks
-{		
+{
 	USERS *(*c_adduser)(USERS *, acetables *);
 	void (*c_deluser)(USERS *, int istmp, acetables *);
 	CHANNEL *(*c_mkchan)(char *, int, acetables *);
@@ -80,12 +80,12 @@ struct _plug_config
 #define APE_INIT_PLUGIN(modname, initfunc, freefunc, modcallbacks) \
 	APE_PLUGIN_ENTRY_POINT void ape_module_init(ace_plugins *module) \
 	{ \
-		 infos_module.conf = NULL; \
-		 module->cb = &modcallbacks; \
-		 module->infos = &infos_module; \
-		 module->loader = initfunc; \
-		 module->unloader = freefunc; \
-		 module->modulename = modname; \
+		infos_module.conf = NULL; \
+		module->cb = &modcallbacks; \
+		module->infos = &infos_module; \
+		module->loader = initfunc; \
+		module->unloader = freefunc; \
+		module->modulename = modname; \
 	}
 
 #if __cplusplus

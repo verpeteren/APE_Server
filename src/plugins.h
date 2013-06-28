@@ -36,9 +36,9 @@ struct _ace_plugin_infos
 	const char *name;
 	const char *version;
 	const char *author;
-	
+
 	const char *conf_file;
-	
+
 	struct _plug_config *conf;
 };
 
@@ -58,14 +58,14 @@ struct _ace_plugins
 		unsigned short int c_addsubuser;
 		unsigned short int c_delsubuser;
 	} fire;
-	
+
 	/* Module Handle */
 	void *hPlug;
 	void (*loader)(acetables *g_ape);
 	void (*unloader)(acetables *g_ape);
-	
+
 	const char *modulename;
-	
+
 	struct _ace_callbacks *cb;
 	/* Module info */
 	ace_plugin_infos *infos;
