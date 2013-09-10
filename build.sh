@@ -44,5 +44,8 @@ else
 	
 	echo "STAGING_DEBUG=0\nSTAGING_RELEASE=1\n" > build.mk
 	
+	#echo "STAGING_DEBUG=1" > build.mk
+	echo "STAGING_RELEASE=1" > build.mk
+
 	make
 fi

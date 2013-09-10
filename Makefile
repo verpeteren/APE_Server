@@ -11,7 +11,8 @@ UDNS=./deps/udns-0.0.9/libudns.a
 include ./build.mk
 ifdef STAGING_DEBUG
 DEBUGFLAGS=-g -ggdb
-PROFILEFLAGS=-pg -profile -finstrument-functions
+PROFILEFLAGS=-pg -profile
+# -finstrument-functions
 endif
 CFLAGS=-Wall -O2 -minline-all-stringops -I ./deps/udns-0.0.9/
 LFLAGS=-rdynamic -ldl -lm -lpthread
