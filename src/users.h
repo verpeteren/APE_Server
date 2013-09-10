@@ -154,7 +154,7 @@ typedef struct userslist
 	struct userslist *next;
 
 	unsigned int level;
-	/* TODO: it can be intersting to extend this */
+	/* TODO: it can be interesting to extend this */
 } userslist;
 
 

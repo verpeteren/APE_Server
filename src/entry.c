@@ -320,6 +320,7 @@ int main(int argc, char **argv)
 	if (pidfile != NULL) {
 		unlink(pidfile);
 	}
+	//fixme: unregister commands, register_bad_cmd and register_hook_cmd
 
 	free(confs_path);
 

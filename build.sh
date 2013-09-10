@@ -32,7 +32,6 @@ else
 		echo "HAS_MYSQL = 0" > ./modules/mysql.mk
 		echo "#undef _USE_MYSQL" >> ./src/configure.h
 	fi
-	
 	if [ -e "/usr/include/mongo/client/dbclient.h" ]
 	then
 		echo "HAS_MONGO = yes" > ./modules/mongo.mk
@@ -41,8 +40,7 @@ else
 		echo "HAS_MONGO = 0" > ./modules/mongo.mk
 		echo "#undef _USE_MONGO" >> ./src/configure.h
 	fi
-	
-	echo "STAGING_DEBUG=0\nSTAGING_RELEASE=1\n" > build.mk
-	
+	#echo "STAGING_DEBUG=1" > build.mk
+	echo "STAGING_RELEASE=1" > build.mk
 	make
 fi
