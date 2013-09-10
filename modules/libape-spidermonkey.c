@@ -2453,7 +2453,6 @@ static void reportError(JSContext *cx, const char *message, JSErrorReport *repor
 		report->tokenptr);
 }
 
-
 static JSObject *ape_json_to_jsobj(JSContext *cx, json_item *head, JSObject *root)
 {
 	while (head != NULL) {
@@ -3064,6 +3063,7 @@ APE_JS_NATIVE(ape_sm_readfile)
 	if (argc != 1) {
 		return JS_TRUE;
 	}
+
 	if (!JS_ConvertArguments(cx, 1, JS_ARGV(cx, vpn), "S", &string)) {
 		return JS_TRUE;
 	}
@@ -3072,6 +3072,7 @@ APE_JS_NATIVE(ape_sm_readfile)
 	if (fp == NULL) {
 		return JS_TRUE;
 	}
+
 	content = xmalloc(sizeof(char) * size);
 	while (!feof(fp)) {
 		int tmp;
@@ -3086,23 +3087,24 @@ APE_JS_NATIVE(ape_sm_readfile)
 	free(content);
 	JS_free(cx, cstring);
 	return JS_TRUE;
+
 }
 
 /**
- * Decode a base64 encoded string.
+ * Encode a string.
  *
  * @name Ape.b64.encode
  * @function
  * @public
  * @static
  *
- * @param {string} text An encoded string.
- * @returns {string} The decoded string.
+ * @param {string} text A string.
+ * @returns {string} The encoded string.
  *
  * @example
- * var foo = Ape.b64.decode(xxx);
+ * var foo = Ape.b64.encode(xxx);
  *
- * @see Ape.b64.encode
+ * @see Ape.b64.decode
  */
 APE_JS_NATIVE(ape_sm_b64_encode)
 //{
@@ -3131,19 +3133,19 @@ APE_JS_NATIVE(ape_sm_b64_encode)
 }
 
 /**
- * Encode a string in base64.
+ * Decode a string in base64.
  *
  * @name Ape.b64.decode
  * @function
  * @public
  * @static
  *
- * @param {string} text A string.
+ * @param {string} text A base encoded string.
  * @returns {string} The decoded string.
  *
  * @example
- * var foo = Ape.b64.dede(xxx);
- * @see Ape.b64.decode
+ * var foo = Ape.b64.decode(xxx);
+ * @see Ape.b64.encode
  */
 APE_JS_NATIVE(ape_sm_b64_decode)
 //{
@@ -4231,7 +4233,6 @@ APE_JS_NATIVE(ape_sm_status)
 	JS_SetProperty(cx, elem, "isDaemon", &isDaemon);
 	jsval currentval = OBJECT_TO_JSVAL(elem);
 	JS_SET_RVAL(cx, vpn, currentval);
-<<<<<<< .merge_file_E3FTDy
 	return JS_TRUE;
 }
 
@@ -4271,43 +4272,6 @@ APE_JS_NATIVE(ape_sm_eval)
 }
 
 /**
-
- * @name: 	Ape.eval
- * @function
- * @public
- * @static
- *
- * @param {string} scriptstring The javascript code that should be executed in the Ape context
- * @returns {undefined|integer} if the scriptstring was empty or the could not compiled
- * 			else the return value of the scriptstring
- *
- * @example:var r = Ape.eval("var sum = function(a, b){return a + b;}; return sum(4,4);");
- * Ape.log('returned: ' + r);
- */
-
-APE_JS_NATIVE(ape_sm_eval)
-//{
-	char *cscript;
-	JSString *script;
-	jsval ret;
-
-	JSObject *obj = JS_THIS_OBJECT(cx, vpn);
-	if (!JS_ConvertArguments(cx, 1, JS_ARGV(cx, vpn), "S", &script)) {
-		return JS_TRUE;
-	}
-	cscript = JS_EncodeString(cx, script);
-
-	ret = JSVAL_VOID;
-	if ((JS_EvaluateScript(cx, obj, cscript, strlen (cscript), "eval()", 0, &ret)) != JS_FALSE) {
-		JS_SET_RVAL(cx, vpn, ret);
-	}
-	JS_SET_RVAL(cx, vpn, ret);
-	JS_free(cx, cscript);
-	return JS_TRUE;
-}
-
-/**
->>>>>>> .merge_file_ae0HAx
  * @name: 	Ape.os.system
  * @function
  * @static
@@ -5040,7 +5004,6 @@ APE_JS_NATIVE(ape_sm_sockserver_constructor)
 
 	JS_free(cx, cip);
 
-<<<<<<< .merge_file_E3FTDy
 	return JS_TRUE;
 }
 
@@ -5150,7 +5113,7 @@ static JSFunctionSpec sha1_funcs[] = {
 
 #ifdef _USE_MONGO
 /**
- * @Author: Peter Reijnders <peter.reijnders@verpeteren.nl>
+ * @author: Peter Reijnders <peter.reijnders@verpeteren.nl>
  * @date   Jun, 2013
  *
  * @brief  Mongo library connection in Ape spidermonkey module, mostly a work in progress / proof of concept
@@ -5158,8 +5121,8 @@ static JSFunctionSpec sha1_funcs[] = {
  * @FIXME: array values are not handled correctly, all values are now stored as null.
  * @FIXME: Ape.Mongo.check is faulty somehow
  * @TODO: There is no asynchrounous, non blocking handling. So it is quite APE unworthy
- * @TODO: Mongo has many features, (index, replica's, find_one, batch, insert) these could be added
- * @TODO: not all bson types are handled correctly when saving the values
+ * @TODO: Mongo has many features, (index, replica's, find_one, batch, insert) these could be added rather easy
+ * @TODO: not all bson types are handled at the moment when saving the values (I focussed on the simple ones)
  */
 
 
@@ -5276,9 +5239,9 @@ void bson_to_jsobj(JSContext *cx, const bson *in, JSObject *out){
 	}
 }
 //! Initializes namespace via a macro.
-//! @param database The database name (e.g. 'staff')
-//! @param collection The collection name (e.g. 'employee')
-//! @return namespace The concated namespace (e.g. 'staff.employee'
+//! @param {string} database The database name (e.g. 'staff')
+//! @param {string} collection The collection name (e.g. 'employee')
+//! @returns {string} namespace The concated namespace (e.g. 'staff.employee'
 //! NOTE namespace is xmalloc'd and needs to be free'd
 #define SM_MONGO_NAMESPACE(database, collection, namespace) \
 		namespace = (char *) xmalloc(sizeof(char) *  (3 + strlen(database) + strlen(collection) ));\
@@ -5297,25 +5260,26 @@ struct _ape_mongo_data {
 
 /**
  * @name: Ape.Mongo.command
- * @method
- * @params: (string) database name (e.g. animals)
- * @params: (string) Collection name (e.g. mamals)
- * @params: (string) command (e.g. drop)
- * @params: (function) onSuccess callback for success
- * @params: (function.object) the object that has been been returned by the command
- * @params: (function) onError callback for error
- * @params: (int) onError.coded The error code
- * @params: (string) onError.errorstring The error message
- * @returns: (void)
+ * @function
+ * @public
+ *
+ * @param {string}  	database 			The database name (e.g. animals)
+ * @param {string} 		collection 			The collection name (e.g. mamals)
+ * @param {string} 		command 			The mongo commant to be excuted (e.g. drop)
+ * @param {function}  	onSuccess 			Callback for success
+ * @param {object} 	object 				The object that has been been returned by the command
+ * @param {function} 	onError 			Callback for error
+ * @param {integer} 	onError.coded 		The error code
+ * @param {string} 		onError.errorString The error message
+ * @returns {void}
+ *
  * @example:
- * @code
- var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
- mongo.command('animals', 'mamals', 'drop', function(res) {
-    	Ape.log(JSON.stringify(res));
-    }, function (code, msg) {
-    	Ape.log('error code:' + code + ' ' + msg);
-    });
- * @endcode
+ * var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
+ * mongo.command('animals', 'mamals', 'drop', function(res) {
+ * 	Ape.log(JSON.stringify(res));
+ * }, function (code, msg) {
+ * 	Ape.log('error code:' + code + ' ' + msg);
+ * );
  */
 APE_JS_NATIVE(ape_sm_mongo_command)
 //{
@@ -5366,21 +5330,24 @@ APE_JS_NATIVE(ape_sm_mongo_command)
 
 /**
  * @name: Ape.Mongo.drop
- * @method
- * @params: (string) database name (e.g. animals)
- * @params: (string) Collection name (e.g. mamals)
- * @params: (function) onSuccess callback for success
- * @params: (function) onError callback for error
- * @params: (int) onError.coded The error code
- * @params: (string) onError.errorstring The error message
- * @returns: (void)
+ * @function
+ * @public
+ *
+ * @param {string} 		database 				The database name (e.g. animals)
+ * @param {string} 		collection 				The collection name (e.g. mamals)
+ * @param {function} 	onSuccess 				Callback for success
+ * @param {function} 	onError 				Callback for error
+ * @param {integer} 	onError.coded 			The error code
+ * @param {string} 		onError.errorstring 	The error message
+ * @returns {void}
+ *
  * @example
- var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
- mongo.drop('ops', 'employees', function() {
-    	Ape.log("ok");
-    }, function (code, msg) {
-    	Ape.log('error code:' + code + ' ' + msg);
-    });
+ * var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
+ * mongo.drop('ops', 'employees', function() {
+ * 	Ape.log('ok');
+ * }, function (code, msg) {
+ * 	Ape.log('error code:' + code + ' ' + msg);
+ * });
  */
 APE_JS_NATIVE(ape_sm_mongo_drop)
 //{
@@ -5421,20 +5388,21 @@ APE_JS_NATIVE(ape_sm_mongo_drop)
 
 /**
  * @name: Ape.Mongo.check
- * @method
- * @params: (function) onSuccess callback for success
- * @params: (function) onError callback for error
- * @returns: (void)
+ * @function
+ * @public
+ * @FIXME: it appears that mongo_check_connection is broken, it always returns -1
+ *
+ * @param {function} onSuccess 	Callback for success
+ * @param {function} onError 	Callback for error
+ * @returns {void}
+ *
  * @example:
- * @code
- var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
- mongo.check(function() {
-    	Ape.log("Connection ok");
-    }, function (code, error) {
-    	Ape.log("connection is bad");
-    });
- * @endcode
-  @FIXME: it appears that mongo_check_connection is broken, it always returns -1
+ * var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
+ * mongo.check(function() {
+ * 	Ape.log("Connection ok");
+ * }, function (code, error) {
+ * 	Ape.log("connection is bad");
+ * });
  */
 
 APE_JS_NATIVE(ape_sm_mongo_check)
@@ -5468,38 +5436,39 @@ APE_JS_NATIVE(ape_sm_mongo_check)
 }
 /**
  * @name: Ape.Mongo.query
- * @method
- * @params: (string) database name (e.g. animals)
- * @params: (string) Collection name (e.g. mamals)
- * @params: (object) filters The object that will be searched for. Eventually with extra $orderby, $hint, and $explain
- * @params: (function) onSuccess callback for success
- * @params: (function.object) An array of objects returned from the query
- * @params: (function) onError callback for error
- * @params: (int) onError.coded The error code
- * @params: (string) onError.errorstring The error message
- * @returns: (void)
+ * @function
+ * @public
+ *
+ * @param {string} 		database  				The database name (e.g. animals)
+ * @param {string} 		collection 				The collection name (e.g. mamals)
+ * @param {object} 		filters 				The object that will be searched for. Eventually with extra $orderby, $hint, and $explain
+ * @param {function} 	onSuccess 				Callback for success
+ * @param {Array} 		List 					An array of objects returned from the query
+ * @param {function} 	onError 				Callback for error
+ * @param {integer} 	onError.coded 			The error code
+ * @param {string} 		onError.errorstring 	The error message
+ * @returns {void}
+ *
  * @example:
- * @code
- var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
-    mongo.query('ops', 'employees'
-			{'name': 'peter'},
-			function(res) {
-				Ape.log(JSON.stringify(res));
-			},
-			function (code, error) {
-				Ape.log('error code:' + code + ' ' + error);
-			}
-	 );
-	mongo.query('ops', 'employees'
-			{'$query': {'name': 'peter'}, '$orderby': {'iq' : -1 }},
-			function(res) {
-				Ape.log(JSON.stringify(res));
-			},
-			function (code, error) {
-				Ape.log('error code:' + code + ' ' + error);
-			}
-	 );
- * @endcode
+ * var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
+ * mongo.query('ops', 'employees'
+ * 	{'name': 'peter'},
+ * 	function(res) {
+ * 		Ape.log(JSON.stringify(res));
+ * 	},
+ * 	function (code, error) {
+ * 		Ape.log('error code:' + code + ' ' + error);
+ * 	}
+ * );
+ * mongo.query('ops', 'employees'
+ * 	{'$query': {'name': 'peter'}, '$orderby': {'iq' : -1 }},
+ * 	function(res) {
+ * 		Ape.log(JSON.stringify(res));
+ * 	},
+ * 	function (code, error) {
+ * 		Ape.log('error code:' + code + ' ' + error);
+ * }
+ * );
  */
 APE_JS_NATIVE(ape_sm_mongo_query)
 //{
@@ -5567,38 +5536,38 @@ APE_JS_NATIVE(ape_sm_mongo_query)
 
 /**
  * @name: Ape.Mongo.update
- * @method
- * @params: (string) database name (e.g. animals)
- * @params: (string) Collection name (e.g. mamals)
- * @params: (object) filter The fields and values to be changed
- * @params: (object) changes The change conditions
- * @params: (function) onSuccess callback for success
- * @params: (function) onError callback for error
- * @params: (int) onError.coded The error code
- * @params: (string) onError.errorstring The error message
- * @returns: (void)
- * @example:
- * @code
- var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);;
- mongo.update('ops', 'employees',
-		{'name' : 'peter'},
-		{'$inc' : {'iq': 1}},
-		function(res) {
-		    mongo.query(db + '.' + collection, {'name': 'peter'},
-			function() {
-				Ape.log("update ok");
-			},
-			function (code, error) {
-				Ape.log('error code:' + code + ' ' + error);
-			});
-		},
-			function (code, error) {
-				Ape.log('error code:' + code + ' ' + error);
-			}
-	);
- * @endcode
+ * @function
+ * @public
  * @TODO: update type flagsMONGO_UPDATE_UPSERT = 0x1, MONGO_UPDATE_MULTI = 0x2, MONGO_UPDATE_BASIC = 0x4 as param
  *
+ * @param {string} 		database 				The database name (e.g. animals)
+ * @param {string} 		collection 				The collection name (e.g. mamals)
+ * @param {object} 		filter 					The fields and values to be changed
+ * @param {object} 		changes 				The change conditions
+ * @param {function} 	onSuccess 				callback for success
+ * @param {function} 	onError 				callback for error
+ * @param {integer} 	onError.coded 			The error code
+ * @param {string} 		onError.errorstring 	The error message
+ * @returns {void}
+ *
+ * @example:
+ * var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);;
+ * mongo.update('ops', 'employees',
+ * 	{'name' : 'peter'},
+ * 	{'$inc' : {'iq': 1}},
+ * 	function(res) {
+ * 	    mongo.query(db + '.' + collection, {'name': 'peter'},
+ * 	function() {
+ * 		Ape.log("update ok");
+ * 	},
+ * 	function (code, error) {
+ * 		Ape.log('error code:' + code + ' ' + error);
+ * 	});
+ * 	},
+ * 	function (code, error) {
+ * 	Ape.log('error code:' + code + ' ' + error);
+ * 	}
+ * );
  */
 APE_JS_NATIVE(ape_sm_mongo_update)
 //{
@@ -5661,34 +5630,35 @@ APE_JS_NATIVE(ape_sm_mongo_update)
 }
 /**
  * @name: Ape.Mongo.remove
- * @method
- * @params: (string) database name (e.g. animals)
- * @params: (string) Collection name (e.g. mamals)
- * @params: (object) filter The fields and values to be removed
- * @params: (function) onSuccess callback for success
- * @params: (function) onError callback for error
- * @params: (int) onError.coded The error code
- * @params: (string) onError.errorstring The error message
- * @returns: (void)
+ * @function
+ * @public
+ *
+ * @param {string} 		database 			The database name (e.g. animals)
+ * @param {string} 		collection 			The collection name (e.g. mamals)
+ * @param {object} 		filter 				The fields and values to be removed
+ * @param {function} 	onSuccess 			Callback for success
+ * @param {function} 	onError 			Callback for error
+ * @param {integer} 	onError.coded 		The error code
+ * @param {string} 		onError.errorstring The error message
+ * @returns {void}
  * @example:
- * @code
- var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
- mongo.remove('ops', 'employees',
-		{'name' : 'peter'},
-		function(res) {
-		    mongo.query(db + '.' + collection, {'name': 'peter'},
-			function(res) {
-				Ape.log(JSON.strinify(res));
-			},
-			function (code, error) {
-				Ape.log('error code:' + code + ' ' + error);
-			});
-		},
-		function (code, error) {
-			Ape.log('error code:' + code + ' ' + error);
-		}
-	);
- * @endcode
+ *
+ * var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
+ * mongo.remove('ops', 'employees',
+ * 	{'name' : 'peter'},
+ * 	function(res) {
+ * 		mongo.query(db + '.' + collection, {'name': 'peter'},
+ * 		function(res) {
+ * 			Ape.log(JSON.strinify(res));
+ * 		},
+ * 		function (code, error) {
+ * 			Ape.log('error code:' + code + ' ' + error);
+ * 		});
+ * 	},
+ * 	function (code, error)
+ * 		Ape.log('error code:' + code + ' ' + error);
+ *	}
+ *);
  */
 APE_JS_NATIVE(ape_sm_mongo_remove)
 //{
@@ -5747,26 +5717,26 @@ APE_JS_NATIVE(ape_sm_mongo_remove)
 
 /**
  * @name: Ape.Mongo.insert
- * @method
- * @params: (string) database name (e.g. animals)
- * @params: (string) Collection name (e.g. mamals)
- * @params: (object) object the object that will be stored, this will be added with a _ID field
- * @params: (function) onSuccess callback for success
- * @params: (string) id The id of the object;
- * @params: (function) onError callback for error
- * @params: (int) onError.coded The error code
- * @params: (string) onError.errorstring The error message
- * @returns: (void)
+ * @function
+ * @public
+ *
+ * @param {string} 		database 			The database name (e.g. animals)
+ * @param {string} 		Collection 			The collection name (e.g. mamals)
+ * @param {object} 		object 				The object that will be stored, this will be added with a _ID field
+ * @param {function} 	onSuccess 			Callback for success
+ * @param {string} 		id 					The id of the object;
+ * @param {function} 	onError 			Callback for error
+ * @param {integer} 	onError.coded 		The error code
+ * @param {string} 		onError.errorstring The error message
+ * @returns {void}
+ *
  * @example:
- * @code
- var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
-
- mongo.insert('ops', 'employees', {'name': 'peter', 'age' : 999}, function(id) {
-    	Ape.log("inserted :" + id );
-    }, function (code, msg) {
-    	Ape.log('error code:' + code + ' ' + msg);
-    });
- * @endcode
+ * var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
+ * mongo.insert('ops', 'employees', {'name': 'peter', 'age' : 999}, function(id) {
+ * 		Ape.log("inserted :" + id );
+ * 	}, function (code, msg) {
+ * 	Ape.log('error code:' + code + ' ' + msg);
+ * });
  */
 APE_JS_NATIVE(ape_sm_mongo_insert)
 //{
@@ -5835,6 +5805,7 @@ APE_JS_NATIVE(ape_sm_mongo_insert)
 
 /**
  * Destructor
+ * @private
  */
 static void ape_sm_mongo_finalize(JSContext *cx, JSObject *jsmongo);
 static void ape_sm_mongo_finalize(JSContext *cx, JSObject *jsmongo){
@@ -5853,14 +5824,15 @@ static void ape_sm_mongo_finalize(JSContext *cx, JSObject *jsmongo){
 
 /**
  * @name: Ape.Mongo.close
- * @returns: (void)
- * @method
+ * @function
+ * @public
+ *
+ * @returns {void}
  * @example:
- * @code
- var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
- mongo.close();
- delete mongo;
- * @endcode
+ *
+ * var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
+ * mongo.close();
+ * delete mongo;
  */
 APE_JS_NATIVE(ape_sm_mongo_close)
 //{
@@ -5887,93 +5859,6 @@ static JSFunctionSpec ape_sm_mongo_funcs[] = {
 	JS_FS_END
 };
 
- * Apply a 'XOR' between two string (or binary)
- *
- * @name Ape.xorize
- * @function
- * @public
- * @static
- *
- * @param {string} string1
- * @param {string} string2
- * @returns {string} The xor-ed string
- *
- * @example
- * var result = Ape.xorize("key1", "key2");
- * @example
- * for (i = 0; i < key1_len; i++) {
- * 	returned[i] = key1[i] ^ key2[i];
- * }
- */
- 
-APE_JS_NATIVE(ape_sm_xorize)
-//{
-	JSString *s1, *s2;
-	char *ps1, *ps2, *final;
-	int i, len;
-
-	if (!JS_ConvertArguments(cx, 2, JS_ARGV(cx, vpn), "SS", &s1, &s2)) {
-		return JS_TRUE;
-	}
-
-	ps1 = JS_EncodeString(cx, s1);
-	ps2 = JS_EncodeString(cx, s2);
-	len = JS_GetStringEncodingLength(cx, s1);
-
-	if (JS_GetStringLength(s2) < len) {
-		return JS_TRUE;
-	}
-
-	final = xmalloc(sizeof(char) * len);
-
-	for (i = 0; i < len; i++) {
-		final[i] = ps1[i] ^ ps2[i];
-	}
-
-	JS_SET_RVAL(cx, vpn, STRING_TO_JSVAL(JS_NewStringCopyN(cx, final, len)));
-
-	free(final);
-
-	JS_free(cx, ps1);
-	JS_free(cx, ps2);
-
-	return JS_TRUE;
-}
-
-
-static JSFunctionSpec ape_funcs[] = {
-	JS_FS("addEvent",   ape_sm_addEvent,	2, 0), /* Ape.addEvent('name', function() { }); */
-	JS_FS("registerCmd", ape_sm_register_cmd, 3, 0),
-	JS_FS("registerHookBadCmd", ape_sm_register_bad_cmd, 1, 0),
-	JS_FS("registerHookCmd", ape_sm_hook_cmd, 2, 0),
-	JS_FS("log",  		ape_sm_echo,  		1, 0),/* Ape.echo('stdout\n'); */
-	JS_FS("getPipe", ape_sm_get_pipe, 1, 0),
-	JS_FS("getChannelByName", ape_sm_get_channel_by_name, 1, 0),
-	JS_FS("getUserByPubid", ape_sm_get_user_by_pubid, 1, 0),
-	JS_FS("getChannelByPubid", ape_sm_get_channel_by_pubid, 1, 0),
-	JS_FS("config", ape_sm_config, 2, 0),
-	JS_FS("mainConfig", ape_sm_mainconfig, 2, 0),
-	JS_FS("setTimeout", ape_sm_set_timeout, 2, 0),
-	JS_FS("setInterval", ape_sm_set_interval, 2, 0),
-	JS_FS("clearTimeout", ape_sm_clear_timeout, 1, 0),
-	JS_FS("clearInterval", ape_sm_clear_timeout, 1, 0),
-	JS_FS("xorize", ape_sm_xorize, 2, 0),
-	JS_FS("addUser", ape_sm_adduser, 1, 0),
-	JS_FS("mkChan", ape_sm_mkchan, 1, 0),
-	JS_FS("rmChan", ape_sm_rmchan, 1, 0),
-	JS_FS("eval", ape_sm_eval, 1, 0),
-	JS_FS("status", ape_sm_status, 1, 0),
-	JS_FS_END
-};
-
-static JSFunctionSpec os_funcs[] = {
-	JS_FS("system", ape_sm_system, 2, 0),
-	JS_FS("getHostByName", ape_sm_gethostbyname, 1, 0),
-	JS_FS("readfile", ape_sm_readfile, 1, 0),
-	JS_FS("writefile", ape_sm_writefile, 2, 0),
-	JS_FS_END
-};
-
 static JSFunctionSpec ape_sm_mongo_funcs_static[] = {
 	JS_FS_END
 };
@@ -5986,15 +5871,17 @@ static JSClass mongo_class = {
 
 /**
  * Name Ape.Mongo
+ * class
  * @constructor
- * @params: (string) host	Hostname or ip address
- * @params: [(int) port]	Port
- * @params: [(timeout)]		Timeout in ms
- * @returns: (Object|boolean) Object on success (onConnect method is called), or null (onError method is called);
+ * public
+ *
+ * @param {string} 				host	Hostname or ip address
+ * @param [{int}] 				port	Port
+ * @param [{integer}] 			timeout	Timeout in ms
+ * @returns (object|boolean) 	Object 	Instance on success (onConnect method is called), or null (onError method is called);
+ *
  * @example:
- * @code
-   var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
- * @endcode
+ * var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
  */
 APE_JS_NATIVE(ape_sm_mongo_constructor)
 //{
@@ -6045,7 +5932,6 @@ APE_JS_NATIVE(ape_sm_mongo_constructor)
 	JS_free(cx, cip);
 	return JS_TRUE;
 }
-
 #endif
 
 
@@ -6106,7 +5992,6 @@ static void ape_sm_define_ape(ape_sm_compiled *asc, JSContext *gcx, acetables *g
 	#ifdef _USE_MYSQL
 	JS_DefineFunctions(asc->cx, jsmysql, apemysql_funcs);
 	#endif
-
 	#ifdef _USE_MONGO
 	JS_DefineFunctions(asc->cx, jsmongo, ape_sm_mongo_funcs);
 	#endif
@@ -6293,8 +6178,9 @@ static void ape_fire_callback(const char *name, uintN argc, jsval *argv, acetabl
  * 	});
  *
  * @see Ape.addEvent
- * @see Ape.sto
+ * @see Ape.stop
  */
+
 static void init_module(acetables *g_ape) // Called when module is loaded
 {
 	JSRuntime *rt;
