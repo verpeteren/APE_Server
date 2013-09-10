@@ -4231,6 +4231,7 @@ APE_JS_NATIVE(ape_sm_status)
 	JS_SetProperty(cx, elem, "isDaemon", &isDaemon);
 	jsval currentval = OBJECT_TO_JSVAL(elem);
 	JS_SET_RVAL(cx, vpn, currentval);
+<<<<<<< .merge_file_E3FTDy
 	return JS_TRUE;
 }
 
@@ -4270,6 +4271,43 @@ APE_JS_NATIVE(ape_sm_eval)
 }
 
 /**
+
+ * @name: 	Ape.eval
+ * @function
+ * @public
+ * @static
+ *
+ * @param {string} scriptstring The javascript code that should be executed in the Ape context
+ * @returns {undefined|integer} if the scriptstring was empty or the could not compiled
+ * 			else the return value of the scriptstring
+ *
+ * @example:var r = Ape.eval("var sum = function(a, b){return a + b;}; return sum(4,4);");
+ * Ape.log('returned: ' + r);
+ */
+
+APE_JS_NATIVE(ape_sm_eval)
+//{
+	char *cscript;
+	JSString *script;
+	jsval ret;
+
+	JSObject *obj = JS_THIS_OBJECT(cx, vpn);
+	if (!JS_ConvertArguments(cx, 1, JS_ARGV(cx, vpn), "S", &script)) {
+		return JS_TRUE;
+	}
+	cscript = JS_EncodeString(cx, script);
+
+	ret = JSVAL_VOID;
+	if ((JS_EvaluateScript(cx, obj, cscript, strlen (cscript), "eval()", 0, &ret)) != JS_FALSE) {
+		JS_SET_RVAL(cx, vpn, ret);
+	}
+	JS_SET_RVAL(cx, vpn, ret);
+	JS_free(cx, cscript);
+	return JS_TRUE;
+}
+
+/**
+>>>>>>> .merge_file_ae0HAx
  * @name: 	Ape.os.system
  * @function
  * @static
@@ -5002,6 +5040,7 @@ APE_JS_NATIVE(ape_sm_sockserver_constructor)
 
 	JS_free(cx, cip);
 
+<<<<<<< .merge_file_E3FTDy
 	return JS_TRUE;
 }
 
@@ -5845,6 +5884,93 @@ static JSFunctionSpec ape_sm_mongo_funcs[] = {
 	JS_FS("remove", ape_sm_mongo_remove, 4, 0),
 	JS_FS("command", ape_sm_mongo_command, 5, 0),
 	JS_FS("close", ape_sm_mongo_close, 0, 0),
+	JS_FS_END
+};
+
+ * Apply a 'XOR' between two string (or binary)
+ *
+ * @name Ape.xorize
+ * @function
+ * @public
+ * @static
+ *
+ * @param {string} string1
+ * @param {string} string2
+ * @returns {string} The xor-ed string
+ *
+ * @example
+ * var result = Ape.xorize("key1", "key2");
+ * @example
+ * for (i = 0; i < key1_len; i++) {
+ * 	returned[i] = key1[i] ^ key2[i];
+ * }
+ */
+ 
+APE_JS_NATIVE(ape_sm_xorize)
+//{
+	JSString *s1, *s2;
+	char *ps1, *ps2, *final;
+	int i, len;
+
+	if (!JS_ConvertArguments(cx, 2, JS_ARGV(cx, vpn), "SS", &s1, &s2)) {
+		return JS_TRUE;
+	}
+
+	ps1 = JS_EncodeString(cx, s1);
+	ps2 = JS_EncodeString(cx, s2);
+	len = JS_GetStringEncodingLength(cx, s1);
+
+	if (JS_GetStringLength(s2) < len) {
+		return JS_TRUE;
+	}
+
+	final = xmalloc(sizeof(char) * len);
+
+	for (i = 0; i < len; i++) {
+		final[i] = ps1[i] ^ ps2[i];
+	}
+
+	JS_SET_RVAL(cx, vpn, STRING_TO_JSVAL(JS_NewStringCopyN(cx, final, len)));
+
+	free(final);
+
+	JS_free(cx, ps1);
+	JS_free(cx, ps2);
+
+	return JS_TRUE;
+}
+
+
+static JSFunctionSpec ape_funcs[] = {
+	JS_FS("addEvent",   ape_sm_addEvent,	2, 0), /* Ape.addEvent('name', function() { }); */
+	JS_FS("registerCmd", ape_sm_register_cmd, 3, 0),
+	JS_FS("registerHookBadCmd", ape_sm_register_bad_cmd, 1, 0),
+	JS_FS("registerHookCmd", ape_sm_hook_cmd, 2, 0),
+	JS_FS("log",  		ape_sm_echo,  		1, 0),/* Ape.echo('stdout\n'); */
+	JS_FS("getPipe", ape_sm_get_pipe, 1, 0),
+	JS_FS("getChannelByName", ape_sm_get_channel_by_name, 1, 0),
+	JS_FS("getUserByPubid", ape_sm_get_user_by_pubid, 1, 0),
+	JS_FS("getChannelByPubid", ape_sm_get_channel_by_pubid, 1, 0),
+	JS_FS("config", ape_sm_config, 2, 0),
+	JS_FS("mainConfig", ape_sm_mainconfig, 2, 0),
+	JS_FS("setTimeout", ape_sm_set_timeout, 2, 0),
+	JS_FS("setInterval", ape_sm_set_interval, 2, 0),
+	JS_FS("clearTimeout", ape_sm_clear_timeout, 1, 0),
+	JS_FS("clearInterval", ape_sm_clear_timeout, 1, 0),
+	JS_FS("xorize", ape_sm_xorize, 2, 0),
+	JS_FS("addUser", ape_sm_adduser, 1, 0),
+	JS_FS("mkChan", ape_sm_mkchan, 1, 0),
+	JS_FS("rmChan", ape_sm_rmchan, 1, 0),
+	JS_FS("eval", ape_sm_eval, 1, 0),
+	JS_FS("status", ape_sm_status, 1, 0),
+	JS_FS_END
+};
+
+static JSFunctionSpec os_funcs[] = {
+	JS_FS("system", ape_sm_system, 2, 0),
+	JS_FS("getHostByName", ape_sm_gethostbyname, 1, 0),
+	JS_FS("readfile", ape_sm_readfile, 1, 0),
+	JS_FS("writefile", ape_sm_writefile, 2, 0),
 	JS_FS_END
 };
 

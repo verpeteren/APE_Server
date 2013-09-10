@@ -15,6 +15,8 @@ Ape.addEvent('init', function() {
 		include('test/FileReadWrite.js');
 		include('test/Status.js');
 		include("test/Mongo.js");
+		include('test/Status.js');
+>>>>>>> .merge_file_YXx5Nz
 	} catch (e) {
 		Ape.log(e.message + '\n\t' + e.fileName + ':' + e.lineNumber);
 	}
