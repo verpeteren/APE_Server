@@ -5399,7 +5399,7 @@ APE_JS_NATIVE(ape_sm_mongo_drop)
  * @example:
  * var mongo = new Ape.Mongo('127.0.0.1', 27017, 1000);
  * mongo.check(function() {
- * 	Ape.log('Connection ok');
+ * 	Ape.log('Connection ok.');
  * }, function (code, error) {
  * 	Ape.log('connection is bad.');
  * });
@@ -5558,7 +5558,7 @@ APE_JS_NATIVE(ape_sm_mongo_query)
  * 	function(res) {
  * 	    mongo.query(db + '.' + collection, {'name': 'peter'},
  * 	function() {
- * 		Ape.log('update ok');
+ * 		Ape.log('update ok.');
  * 	},
  * 	function (code, error) {
  * 		Ape.log('error code:' + code + ' ' + error);
