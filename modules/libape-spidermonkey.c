@@ -5099,7 +5099,15 @@ static void apepostgresql_finalize(JSContext *cx, JSObject *jspostgresql)
 
 
 /**
- * TODO RESET
+ * TODO:
+ * connect with string, connect with object,
+ * callback on error
+ * callback on connect
+ * connection reset, callback on reset
+ * query async
+ * last insert
+ * current connection status
+ * pgexec, prepare
  */
 APE_JS_NATIVE(ape_sm_postgresql_constructor)
 //{
@@ -5123,9 +5131,9 @@ APE_JS_NATIVE(ape_sm_postgresql_constructor)
 		conn = PQconnectStart(xstrdup(cconninfo));
 		//JS_free(cx, cconninfo);
 	}
-#if 0//prepare for libpq >=9.0
+#if 0//prepare for libpq >=9.0, untested
 	else if(JSVAL_IS_OBJECT(jsval)){
-		JSObject *options = NULL;
+		JSObject *options;
 		if (!JS_ConvertArguments(cx, argc, &jsval, "o", &options)) {
 			return JS_TRUE;
 		}
@@ -5146,7 +5154,7 @@ APE_JS_NATIVE(ape_sm_postgresql_constructor)
 				}
 			}
 		}
-		conn = PQconnectStartParams(keywords, values, 0); //No extra parsing of the dbname, to smuggle a connectionstring into it, just use the paramenters
+		conn = PQconnectStartParams(keywords, values, 0); //No extra parsing of the dbname, to smuggle a connectionstring into it, just use the parameters
 	}
 #endif
 	if (conn != NULL && PQstatus(conn) == CONNECTION_BAD) {
@@ -5159,9 +5167,9 @@ APE_JS_NATIVE(ape_sm_postgresql_constructor)
 		status = PQconnectPoll(conn);
 	} while (status != PGRES_POLLING_FAILED && status != PGRES_POLLING_OK);
 	if (status == PGRES_POLLING_FAILED) {
-		printf("PostgreSQL: can not connected to %s\n", "conninfo");
+		printf("PostgreSQL: can not connect to %s\n", conninfo);
 	}else{
-		printf("PostgreSQL: connected to %s\n", "conninfo");
+		printf("PostgreSQL: connected to %s\n", conninfo);
 	}
 	obj = JS_NewObjectForConstructor(cx, vpn);
 	JS_SET_RVAL(cx, vpn, OBJECT_TO_JSVAL(obj));
