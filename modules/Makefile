@@ -24,6 +24,13 @@ $(MYSQL_DEP):
 	@cd $(MYSQL_DEP_DIR)&&touch make.deps&&make&&cd ../..
 endif
 
+include ./postgresql.mk
+ifeq ($(HAS_POSTGRESQL), yes)
+#pg_config --includedir; pkg-config --cflags libpq
+POSTGRESQL_FLAGS=-I /usr/include/postgresql
+POSTGRESQL_LDFLAGS=-L /usr/lib -lpq
+endif
+
 include ./platform.mk
 ifdef DARWIN_BUILD
 CFLAGS=-Wall -O2 -minline-all-stringops
@@ -38,7 +45,7 @@ endif
 modules: lib/$(SPIDERMONKEYMOD)
 
 lib/$(SPIDERMONKEYMOD): $(SPIDERMONKEYSRC) ../deps/js/src/libjs_static.a $(HEADERS) $(MYSQL_DEP)
-	@$(CC) $(CFLAGS) $(CLFLAGS) $(DEBUGFLAGS) $(PROFILEFLAGS) -o lib/$(SPIDERMONKEYMOD) $< $(UDNS) $(FLAGS) $(MYSQL_FLAGS)
+	@$(CC) $(CFLAGS) $(CLFLAGS) $(DEBUGFLAGS) $(PROFILEFLAGS) -o lib/$(SPIDERMONKEYMOD) $< $(UDNS) $(FLAGS) $(MYSQL_FLAGS) $(POSTGRESQL_FLAGS) $(POSTGRESQL_LDFLAGS)
 	@chmod 755 lib/$(SPIDERMONKEYMOD)
 ifdef STAGING_RELEASE
 	@strip lib/$(SPIDERMONKEYMOD)

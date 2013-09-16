@@ -7,7 +7,7 @@ if [ -n "$1" ] && [ "$1" = "clean" ]; then
 	cd ../../../deps/udns-0.0.9&&make clean
 	cd ../js/src&&make clean&&cd ../..
 else
-	rm -f ./src/configure.h ./modules/platform.mk ./modules/mysql.mk
+	rm -f ./src/configure.h ./modules/platform.mk ./modules/mysql.mk ./modules/postgresql.mk
 	OS_TARGET=`uname -s`
 	
 	case "$OS_TARGET" in
@@ -30,6 +30,15 @@ else
 	else
 		echo "HAS_MYSQL = 0" > ./modules/mysql.mk
 		echo "#undef _USE_MYSQL" >> ./src/configure.h
+	fi
+	if [ -e "/usr/include/postgresql/libpq/libpq-fs.h" ]
+		
+	then
+		echo "HAS_POSTGRESQL = yes" > ./modules/postgresql.mk
+		echo "#define _USE_POSTGRESQL 1" >> ./src/configure.h
+	else
+		echo "HAS_POSTGRESQL = 0" > ./modules/postgresql.mk
+		echo "#undef _USE_POSTGRESQL" >> ./src/configure.h
 	fi
 	#echo "STAGING_DEBUG=1" > build.mk
 	echo "STAGING_RELEASE=1" > build.mk
