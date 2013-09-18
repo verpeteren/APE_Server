@@ -1,9 +1,18 @@
 Ape.log(' =====================================>>> \n Start up for test/PostgreSQL.js\n' );
-var sql1 = new Ape.PostgreSQL("postgresql:///apedevdb?apedev:vedepa@host=10.0.0.25&port=5433");
-Ape.log(sql1); 
+Ape.PostgreSQL.onConnect = function(){
+	Ape.log('Connection successfull');
+}
 
-var sql2 = new Ape.PostgreSQL({'hostname': 'ape', 'hostaddr': '10.0.0.25', 'port' : 3306, 'user': 'apedev', 'password': 'vedepa', 'dbname': 'apedevdb'});
-Ape.log(sql1); 
+Ape.PostgreSQL.onError = function(errorNo){
+	Ape.log('Could not connect to PostgreSql: error = ' + errorNo);
+}
+
+var sql = new Ape.PostgreSQL("hostaddr=10.0.0.25 dbname=apedevdb user=apedev password=vedepa port=5432", Ape.PostgreSQL.onConnect, Ape.PostgreSQL.onError);
+Ape.log(sql);
+delete (sql);
+
+//var sql2 = new Ape.PostgreSQL({'hostaddr': '10.0.0.25', 'port' : 5432, 'user': 'apedev', 'password': 'vedepa', 'dbname': 'apedevdb'});
+//Ape.log(sql2); 
 /*sql.onConnect = function() {
     Ape.log('[MySQL] Connected to mysql server. Trying Query');
 

@@ -183,9 +183,10 @@ static void apemysql_shift_queue(struct _ape_mysql_data *myhandle);
 struct _ape_postgresql_data{
 	PGconn *conn;
 	void (*on_success)(struct _ape_postgresql_data *, int);
-	JSObject *jsPostgresql;
+	JSObject *jspostgresql;
 	JSContext *cx;
 	void *data;
+	jsval callback;
 };
 #endif
 //static JSBool sockserver_addproperty(JSContext *cx, JSObject *obj, jsval idval, jsval *vp);
@@ -2122,7 +2123,7 @@ static JSFunctionSpec apemysql_funcs_static[] = {
 
 #ifdef _USE_POSTGRESQL
 static JSFunctionSpec apepostgresql_funcs[] = {
-	JS_FS("onConnect", ape_sm_stub, 0, 0),
+	JS_FS("onConnect", ape_sm_stub, 1, 0),
 	JS_FS("onError", ape_sm_stub, 0, 0),
 	//JS_FS("errorString", apepostgresql_sm_errorstring, 0, 0),
 	//JS_FS("query", apepostgresql_sm_query, 2, 0),
@@ -5086,41 +5087,70 @@ APE_JS_NATIVE(ape_sm_mysql_constructor)
  */
 static void apepostgresql_finalize(JSContext *cx, JSObject *jspostgresql)
 {
-	/*struct _ape_postgres_data *myhandle;
+	struct _ape_postgresql_data *myhandle;
 
 	if ((myhandle = JS_GetPrivate(cx, jspostgresql)) != NULL) {
+		free(myhandle->conn);
 		myhandle->jspostgresql = NULL;
-	}*/
-	/*if(jspostgresql->conn != null){
-		PQfinish(jspostgresql->conn);
-		free(Pjspostgresql->conn);
-	}*/
+	}
 }
-
 
 /**
  * TODO:
  * connect with string, connect with object,
- * callback on error
- * callback on connect
  * connection reset, callback on reset
  * query async
  * last insert
  * current connection status
  * pgexec, prepare
  */
+
+/**
+ * Ape.PostgreSQL is a class constructor. You can connect and use a PostgreSQL database.
+ *
+ * @name Ape.PostgreSQL
+ * @class PostgreSql Object (Database connection)
+ * @constructor
+ * @public
+ * @author Peter Reijnders <peter.reijnders@verpeteren.nl>
+ *
+ * @param {string} connectionstring String with keywords=value
+ * @param {function} onConnect Function to be executed on Connect
+ * @param {function} onError Function to be exectuted when no connection could be established
+ * @param {integer} onError.errorCode Connection errorcode
+ * @returns {Ape.PostgreSQL}
+ *
+ * @example
+ * //Database connection
+ * @Ape.PostgreSQL.onConnect = function(){
+ * 	Ape.log('Connection successfull');
+ * }
+ * 
+ * Ape.PostgreSQL.onError = function(errorNo){
+ * 	Ape.log('Could not connect to PostgreSql: error = ' + errorNo);
+ * }
+ * 
+ * var sql = new Ape.PostgreSQL("hostaddr=10.0.0.25 dbname=apedevdb user=apedev password=vedepa port=5432", Ape.PostgreSQL.onConnect, Ape.PostgreSQL.onError);
+ */
 APE_JS_NATIVE(ape_sm_postgresql_constructor)
 //{
-	//Make a connection to the database server in a nonblocking manner.
 	JSString *conninfo;
 	char *cconninfo;
-	//const char *feedback;
 	PostgresPollingStatusType status;
+	jsval callbackSuccess, callbackError;
+
 	//PGresult *result;
 	PGconn *conn = NULL;
 	JSObject *obj;
-	JS_SET_RVAL(cx, vpn, JSVAL_VOID);
+	jsval params[1];
+	jsval rval;
 	jsval jsval = JS_ARGV(cx, vpn)[0];
+	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[1], JSTYPE_FUNCTION, &callbackSuccess)) {
+		return JS_TRUE;
+	}
+	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[2], JSTYPE_FUNCTION, &callbackError)) {
+		return JS_TRUE;
+	}
 	if (JSVAL_IS_NULL(jsval)) {
 		return JS_TRUE;
 	}else if(JSVAL_IS_STRING(JS_ARGV(cx, vpn)[0])){
@@ -5129,7 +5159,7 @@ APE_JS_NATIVE(ape_sm_postgresql_constructor)
 		}
 		cconninfo = JS_EncodeString(cx, conninfo);
 		conn = PQconnectStart(xstrdup(cconninfo));
-		//JS_free(cx, cconninfo);
+		JS_free(cx, cconninfo);
 	}
 #if 0//prepare for libpq >=9.0, untested
 	else if(JSVAL_IS_OBJECT(jsval)){
@@ -5157,92 +5187,36 @@ APE_JS_NATIVE(ape_sm_postgresql_constructor)
 		conn = PQconnectStartParams(keywords, values, 0); //No extra parsing of the dbname, to smuggle a connectionstring into it, just use the parameters
 	}
 #endif
-	if (conn != NULL && PQstatus(conn) == CONNECTION_BAD) {
-		printf("PostgreSQL: not connected to %s\n", cconninfo);
-		//todo Callback error
-		return JS_TRUE;
-	}
-	do {
-		//Make a non blocking connection
-		status = PQconnectPoll(conn);
-	} while (status != PGRES_POLLING_FAILED && status != PGRES_POLLING_OK);
-	if (status == PGRES_POLLING_FAILED) {
-		printf("PostgreSQL: can not connect to %s\n", conninfo);
-	}else{
-		printf("PostgreSQL: connected to %s\n", conninfo);
+	
+	if (conn != NULL && PQstatus(conn) != CONNECTION_BAD) {
+		do {
+			//Make a connection to the database server in a nonblocking manner.
+			status = PQconnectPoll(conn);
+		} while (status != PGRES_POLLING_FAILED && status != PGRES_POLLING_OK);
+	} else {
+		status = PGRES_POLLING_FAILED; //well, this is not 100% true, but the connection is bad anyway, just call the onError;
 	}
 	obj = JS_NewObjectForConstructor(cx, vpn);
 	JS_SET_RVAL(cx, vpn, OBJECT_TO_JSVAL(obj));
 	//socket = PQsocket(conn);
-	JS_SET_RVAL(cx, vpn, OBJECT_TO_JSVAL(obj));
-	/*closing*/
-
-
-/*
- *
- *
- *
- *
- *
- *	JS:String *host, *login, *pass, *db;
-	char *chost, *clogin, *cpass, *cdb;
-	JSObject *obj = JS_NewObjectForConstructor(cx, vpn);
-
-	JS_SET_RVAL(cx, vpn, OBJECT_TO_JSVAL(obj));
-
-	MYSAC *my;
-	int fd;
-	struct _ape_mysql_data *myhandle;
-
-	if (!JS_ConvertArguments(cx, argc, JS_ARGV(cx, vpn), "SSSS", &host, &login, &pass, &db)) {
-		return JS_TRUE;
+	struct _ape_postgresql_data *myhandle;
+	myhandle = (struct _ape_postgresql_data*) xmalloc(sizeof(*myhandle));
+	myhandle->conn = conn;
+	myhandle->jspostgresql = obj;
+	myhandle->cx = cx;
+	myhandle->data = NULL;
+	JS_SetPrivate(cx, obj, myhandle);
+	JS_DefineFunctions(cx, obj, apepostgresql_funcs);
+	if (status == PGRES_POLLING_FAILED) {
+		params[0] = INT_TO_JSVAL(status);
+		myhandle->callback = callbackError;
+		JS_CallFunctionValue(cx, myhandle->jspostgresql, myhandle->callback, 1, params, &rval);
+	} else {
+		myhandle->callback = callbackSuccess;
+		JS_CallFunctionValue(cx, myhandle->jspostgresql, myhandle->callback, 0, NULL, &rval);
 	}
 
-	myhandle = xmalloc(sizeof(*myhandle));
-
-	chost = JS_EncodeString(cx, host);
-	clogin = JS_EncodeString(cx, login);
-	cpass = JS_EncodeString(cx, pass);
-	cdb = JS_EncodeString(cx, db);
-
-	my = mysac_new(1024*1024);
-	mysac_setup(my, xstrdup(chost), xstrdup(clogin), xstrdup(cpass), xstrdup(cdb), 0);
-	mysac_connect(my);
-
-	myhandle->my = my;
-	myhandle->jsmysql = obj;
-	myhandle->cx = cx;
-	myhandle->db = xstrdup(cdb);
-	myhandle->data = NULL;
-	myhandle->callback = JSVAL_NULL;
-	myhandle->state = SQL_NEED_QUEUE;
-	myhandle->queue.head = NULL;
-	myhandle->queue.foot = NULL;
-
-	JS_SetPrivate(cx, obj, myhandle);
-
-	fd = mysac_get_fd(my);
-
-	prepare_ape_socket (fd, g_ape);
-
-	g_ape->co[fd]->fd = fd;
-	g_ape->co[fd]->stream_type = STREAM_DELEGATE;
-
-	g_ape->co[fd]->callbacks.on_read = ape_mysql_io_read;
-	g_ape->co[fd]->callbacks.on_write = ape_mysql_io_write;
-	g_ape->co[fd]->data = myhandle;
-
-	events_add(g_ape->events, fd, EVENT_READ|EVENT_WRITE);
-
-	//myhandle->to_call = mysac_connect;
-	myhandle->on_success = mysac_connect_success;
-
-	JS_free(cx, chost);
-	JS_free(cx, clogin);
-	JS_free(cx, cpass);
-	JS_free(cx, cdb);
-	*/
-
+	/*closing*/
 	return JS_TRUE;
 }
 #endif
