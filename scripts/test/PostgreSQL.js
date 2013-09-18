@@ -3,13 +3,22 @@ Ape.PostgreSQL.onConnect = function(){
 	Ape.log('Connection successfull');
 }
 
-Ape.PostgreSQL.onError = function(errorNo){
-	Ape.log('Could not connect to PostgreSql: error = ' + errorNo);
+Ape.PostgreSQL.onError = function(){
+	Ape.log('Could not connect to PostgreSql!');
+	Ape.log(this.errorString());
 }
 
-var sql = new Ape.PostgreSQL("hostaddr=10.0.0.25 dbname=apedevdb user=apedev password=vedepa port=5432", Ape.PostgreSQL.onConnect, Ape.PostgreSQL.onError);
-Ape.log(sql);
-delete (sql);
+var pgsql = new Ape.PostgreSQL("hostaddr=10.0.0.25 dbname=apedevdb user=apedev password=vedepa port=5432", Ape.PostgreSQL.onConnect, Ape.PostgreSQL.onError);
+
+Ape.log(pgsql);
+var status = pgsql.status();
+for (var k in status) {
+	Ape.log('\t' + k + ':\t' + status[k]);
+ }
+
+//pgsql.query("insert into nonextistingTable (foo, bar) Values (NULL, '');
+//Ape.log(psql.errorString());
+delete (pgsql);
 
 //var sql2 = new Ape.PostgreSQL({'hostaddr': '10.0.0.25', 'port' : 5432, 'user': 'apedev', 'password': 'vedepa', 'dbname': 'apedevdb'});
 //Ape.log(sql2); 
