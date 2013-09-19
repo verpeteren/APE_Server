@@ -152,10 +152,12 @@ struct _ape_mysql_queue {
 };
 #endif
 
+#if defined(_USE_MYSQL) || defined(_USE_POSTGRESQL)
 typedef enum {
 	SQL_READY_FOR_QUERY,
 	SQL_NEED_QUEUE
-} ape_mysql_state_t;
+} ape_sql_state_t;
+#endif
 
 #ifdef _USE_MYSQL
 struct _ape_mysql_data {
@@ -166,7 +168,7 @@ struct _ape_mysql_data {
 	char *db;
 	void *data;
 	jsval callback;
-	ape_mysql_state_t state;
+	ape_sql_state_t state;
 
 	struct {
 		struct _ape_mysql_queue *head;
@@ -180,6 +182,14 @@ static void apemysql_shift_queue(struct _ape_mysql_data *myhandle);
 #endif
 
 #ifdef _USE_POSTGRESQL
+struct _ape_postgresql_queue {
+	struct _ape_postgresql_queue	*next;
+	//MYSAC_RES *res;
+	char *query;
+	unsigned int query_len;
+	jsval callback;
+};
+
 struct _ape_postgresql_data{
 	PGconn *conn;
 	void (*on_success)(struct _ape_postgresql_data *, int);
@@ -187,7 +197,15 @@ struct _ape_postgresql_data{
 	JSContext *cx;
 	void *data;
 	jsval callback;
+	ape_sql_state_t state;
+	struct {
+		struct _ape_postgresql_queue *head;
+		struct _ape_postgresql_queue *foot;
+	} queue;
+
 };
+
+static void apepostgresql_shift_queue(struct _ape_postgresql_data *myhandle);
 #endif
 //static JSBool sockserver_addproperty(JSContext *cx, JSObject *obj, jsval idval, jsval *vp);
 
@@ -201,7 +219,6 @@ struct _ape_postgresql_data{
  * @author Florian Gasquez (Fy-)
  * @author John Chavarria (psi)
  * @extends plugins.h
- *
  */
 static ace_plugin_infos infos_module = {
 	"Javascript embedded", 	// Module Name
@@ -2122,6 +2139,173 @@ static JSFunctionSpec apemysql_funcs_static[] = {
 #endif
 
 #ifdef _USE_POSTGRESQL
+static void postgresql_query_success(struct _ape_postgresql_data *myhandle, int code)
+{
+	int nRows, nFields, row, field ;
+	JSObject *record, *resultArray;
+	char *ckeyword, *cvalue;
+	Oid datatype;
+	jsval value;
+	PGresult *res;
+	jsval params[2], rval;
+	myhandle->state = SQL_READY_FOR_QUERY;
+	myhandle->on_success = NULL;
+	struct _ape_postgresql_queue *queue = myhandle->data;
+	params[0] = JSVAL_FALSE;
+	params[1] = INT_TO_JSVAL(code);
+	res = PQgetResult(myhandle->conn);
+	if (res != NULL &&  PQresultStatus(res) == PGRES_TUPLES_OK) {
+		//Create an array
+		nRows = PQntuples(res);
+		nFields = PQnfields(res);
+		resultArray = JS_NewArrayObject(myhandle->cx, nRows, NULL);
+		JS_AddObjectRoot(myhandle->cx, &resultArray);
+		for (row = 0; row < nRows; row++) {
+			record = JS_NewObject(myhandle->cx, NULL, NULL, NULL);
+			JS_AddObjectRoot(myhandle->cx, &record);
+			for (field = 0; field < nFields; field++) {
+				ckeyword = PQfname(res, field); //todo speedup might be possible by caching this
+				datatype = PQftype(res, field);
+				if (PQgetisnull(res, row, field) ==0 ) {
+					value = JSVAL_NULL;
+				} else {
+					switch( datatype) {
+						//TODO: better mapping postgresql data types to JSAPI DATA TYPES
+						default:	cvalue = PQgetvalue(res, row, field);
+									value = STRING_TO_JSVAL(JS_NewStringCopyZ(myhandle->cx, cvalue));
+									break;
+					}
+				}
+				JS_SetProperty(myhandle->cx, record, xstrdup(ckeyword), &value); //hmm, what if postgresql columns do not have ascii chars, ecma does not allow that...?
+				JS_RemoveObjectRoot(myhandle->cx, &record);
+				}
+			value = OBJECT_TO_JSVAL(record);
+			JS_SetPropertyById(myhandle->cx, resultArray, row, &value);
+		}
+		PQclear(res);
+		params[0] = value;
+		params[1] = JSVAL_FALSE;
+		JS_RemoveObjectRoot(myhandle->cx, &resultArray);
+	} else if (res != NULL) {
+		PQclear(res);
+	} else {
+	}
+	JS_CallFunctionValue(myhandle->cx, myhandle->jspostgresql, queue->callback, 2, params, &rval);
+
+	
+	JS_free(myhandle->cx, queue->query);
+	//free(queue->res);
+	free(queue);
+	apepostgresql_shift_queue(myhandle);
+}
+
+
+static void apepostgresql_shift_queue(struct _ape_postgresql_data *myhandle)
+{
+	struct _ape_postgresql_queue *queue;
+	int rc;
+	
+	printf("shift %d %s\n", __LINE__, JS_EncodeString(myhandle->cx, myhandle->data));
+	rc = PQsendQuery(myhandle->conn, myhandle->data);//todo: change this into PQsendQueryParams
+	//int basemem = (1024*1024);
+	///char *res_buf;*/
+	if (myhandle->queue.head == NULL || myhandle->state != SQL_READY_FOR_QUERY) {
+		return;
+	}
+	/*res_buf = xmalloc(sizeof(char) * basemem);
+	res = mysac_init_res(res_buf, basemem);
+*/
+	queue = myhandle->queue.head;
+/*	queue->res = res;*/
+	myhandle->state = SQL_NEED_QUEUE;
+	myhandle->data = queue;
+	if ((myhandle->queue.head = queue->next) == NULL) {
+		myhandle->queue.foot = NULL;
+	}
+	//todo:get the real sql
+	////res = PQexec(myhandle->conn, "SELECT * FROM pg_catalog.pg_tables;");//todo change this into PQsendQueryPrepared
+	//rc = PQsendQuery(myhandle->conn, "SELECT * FROM pg_catalog.pg_tables;");//todo: change this into PQsendQueryParams
+	rc = PQsendQuery(myhandle->conn, myhandle->data);//todo: change this into PQsendQueryParams
+	printf("shift %d %s\n", __LINE__, JS_EncodeString(myhandle->cx, myhandle->data));
+	if (rc != 0 || PQflush(myhandle->conn)) {
+		//failure
+		myhandle->on_success = NULL;
+		postgresql_query_success(myhandle, rc);
+		return;
+	}
+	myhandle->on_success = postgresql_query_success;
+}
+
+static struct _ape_postgresql_queue *apepostgresql_push_queue(struct _ape_postgresql_data *myhandle, char *query, unsigned int query_len, jsval callback)
+{
+	struct _ape_postgresql_queue *nqueue;
+	nqueue = xmalloc(sizeof(*nqueue));
+	nqueue->next = NULL;
+	nqueue->query = query;
+	nqueue->query_len = query_len;
+	nqueue->callback = callback;
+	//nqueue->res = NULL;
+printf("push %d %s\n", __LINE__, nqueue->query);
+	if (myhandle->queue.foot == NULL) {
+		myhandle->queue.head = nqueue;
+	} else {
+		myhandle->queue.foot->next = nqueue;
+	}
+	myhandle->queue.foot = nqueue;
+	JS_AddValueRoot(myhandle->cx, &nqueue->callback);
+	if (myhandle->queue.head->next == NULL && myhandle->state == SQL_READY_FOR_QUERY) {
+		apepostgresql_shift_queue(myhandle);
+		return NULL;
+	}
+	return nqueue;
+}
+
+
+/**
+ * Execute a postgresql query.
+ *
+ * @name Ape.PostgresSQL.query
+ * @function
+ * @public
+ *
+ * @param {string} sql The SQL Command or statement
+ * @param {function} fn callback function
+ * @param {Array} fn.res An array of objects if the query was a 'SELECT'
+ * @param {integer} fn.errorNo if an error occured the errorNo != 0
+ * @returns {void}
+ *
+ * @example
+ * sql.query('SELECT * FROM table', function(res, errorNo) {
+ * 	if (errorNo) Ape.log('Request error : ' + errorNo + ' : ' + this.errorString());
+ * 	else {
+ * 		Ape.log('Fetching ' + res.length);
+ * 		for(var i = 0; i < res.length; i++) {
+ * 			Ape.log(res[i].title);//res[i].<column name>
+ * 		});
+ * 	}
+ * });
+ */
+APE_JS_NATIVE(apepostgresql_sm_query)
+//{
+	JSString *query;
+	struct _ape_postgresql_data *myhandle;
+	jsval callback;
+	JSObject *obj = JS_THIS_OBJECT(cx, vpn);
+	if ((myhandle = JS_GetPrivate(cx, obj)) == NULL) {
+		return JS_TRUE;
+	}
+	if (!JS_ConvertArguments(cx, 1, JS_ARGV(cx, vpn), "S", &query)) {
+		return JS_TRUE;
+	}
+	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[1], JSTYPE_FUNCTION, &callback)) {
+		return JS_TRUE;
+	}
+	printf("query %d %s\n", __LINE__, JS_EncodeString(cx, query));
+	apepostgresql_push_queue(myhandle, JS_EncodeString(cx, query), JS_GetStringEncodingLength(cx, query), callback);
+	return JS_TRUE;
+}
+
+
 /**
  * Get the last postgresql error message for this connection.
  * <p> This reurns the error message most recently generated by an operation on the connection.</p>
@@ -2242,6 +2426,9 @@ APE_JS_NATIVE(apepostgresql_sm_status)
 	i = PQconnectionUsedPassword(myhandle->conn);
 	value = (i == 1) ? JSVAL_TRUE: JSVAL_FALSE;
 	JS_SetProperty(cx, statusObj, "connection_used_password", &value);
+	i = PQisnonblocking(myhandle->conn);
+	value = (i == 1) ? JSVAL_TRUE: JSVAL_FALSE;
+	JS_SetProperty(cx, statusObj, "non_blocking", &value);
 #endif
 	//get more information
 	for (i = 0; i < sizeof(keywords)/sizeof(keywords[0])  ; i++) {
@@ -2265,11 +2452,11 @@ APE_JS_NATIVE(apepostgresql_sm_status)
 
 
 static JSFunctionSpec apepostgresql_funcs[] = {
-	JS_FS("onConnect", ape_sm_stub, 1, 0),
+	JS_FS("onConnect", ape_sm_stub, 0, 0),
 	JS_FS("onError", ape_sm_stub, 0, 0),
 	JS_FS("errorString", apepostgresql_sm_errorstring, 0, 0),
 	JS_FS("status", apepostgresql_sm_status, 0, 0),
-	//JS_FS("query", apepostgresql_sm_query, 2, 0),
+	JS_FS("query", apepostgresql_sm_query, 2, 0),
 	//JS_FS("getInsertId", apepostgresql_sm_insert_id, 0, 0),
 	JS_FS_END
 };
@@ -5062,7 +5249,6 @@ static void apemysql_shift_queue(struct _ape_mysql_data *myhandle)
 		myhandle->queue.foot = NULL;
 	}
 	mysac_b_set_query(myhandle->my, queue->res, queue->query, queue->query_len);
-
 	switch((ret = mysac_send_query(myhandle->my))) {
 		case MYERR_WANT_WRITE:
 		case MYERR_WANT_READ:
@@ -5073,9 +5259,7 @@ static void apemysql_shift_queue(struct _ape_mysql_data *myhandle)
 			mysac_query_success(myhandle, ret);
 			return;
 	}
-
 	myhandle->on_success = mysac_query_success;
-
 }
 
 static struct _ape_mysql_queue *apemysql_push_queue(struct _ape_mysql_data *myhandle, char *query, unsigned int query_len, jsval callback)
@@ -5214,6 +5398,39 @@ APE_JS_NATIVE(ape_sm_mysql_constructor)
 #endif
 
 #ifdef _USE_POSTGRESQL
+static void ape_postgresql_io_read(ape_socket *client, ape_buffer *buf, size_t offset, acetables *g_ape)
+{
+	int rc;
+	struct _ape_postgresql_data *myhandle = client->data;
+	struct _ape_postgresql_queue *queue;
+	queue = myhandle->queue.head;
+	/*if (queue != NULL && queue->query != NULL) {
+		printf("reading %s\n", queue->query);
+	}*/
+	while ( !  PQisBusy(myhandle->conn)) {
+		rc = PQconsumeInput(myhandle->conn);
+		if (rc == 1 ) {
+			if (myhandle->on_success != NULL) {
+				myhandle->on_success(myhandle, 0);
+			}
+			
+		}else{
+			myhandle->on_success(myhandle, -1);
+		}
+	}
+}
+static void ape_postgresql_io_write(ape_socket *client, acetables *g_ape)
+{
+	struct _ape_postgresql_data *myhandle = client->data;
+	struct _ape_postgresql_queue *queue;
+	queue = myhandle->queue.head;
+	/*if (queue != NULL && queue->query != NULL) {
+		printf("writing %s\n", queue->query);
+	}*/
+	//ape_postgresql_handle_io(myhandle, g_ape);
+	}
+
+
 /**
  * Close a postgres connection
  *
@@ -5234,16 +5451,16 @@ static void apepostgresql_finalize(JSContext *cx, JSObject *jspostgresql)
 	if ((myhandle = JS_GetPrivate(cx, jspostgresql)) != NULL) {
 		free(myhandle->conn);
 		myhandle->jspostgresql = NULL;
+		//TODO: finish the ape_socket int fd = PQsocket(myhandle->:conn) ;g_ape->co[fd ] ??
 	}
 }
 
 /**
  * TODO:
- * connect with string, connect with object,
- * connection reset, callback on reset
- * query async
+ * connect with object
+ * verify that the connectstring has an hostaddr else do a udns lookup,
+ * connection reset, callback on reset, but also change the fd and the ape_socket.
  * last insert
- * current connection status
  * pgexec, prepare
  */
 
@@ -5269,11 +5486,11 @@ static void apepostgresql_finalize(JSContext *cx, JSObject *jspostgresql)
  * @Ape.PostgreSQL.onConnect = function(){
  * 	Ape.log('Connection successfull');
  * }
- * 
+ *
  * Ape.PostgreSQL.onError = function(errorNo){
  * 	Ape.log('Could not connect to PostgreSql: error = ' + errorNo);
  * }
- * 
+ *
  * var sql = new Ape.PostgreSQL("hostaddr=10.0.0.25 dbname=apedevdb user=apedev password=vedepa port=5432", Ape.PostgreSQL.onConnect, Ape.PostgreSQL.onError);
  *
  * @see Ape.os.resolveHostByName
@@ -5284,7 +5501,7 @@ JSString *conninfo;
 char *cconninfo;
 PostgresPollingStatusType status;
 jsval callbackSuccess, callbackError;
-
+int fd;
 //PGresult *result;
 PGconn *conn = NULL;
 JSObject *obj;
@@ -5298,7 +5515,7 @@ if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[2], JSTYPE_FUNCTION, &callbackError)) 
 }
 if (JSVAL_IS_NULL(jsval)) {
 	return JS_TRUE;
-}else if(JSVAL_IS_STRING(JS_ARGV(cx, vpn)[0])){
+} else if (JSVAL_IS_STRING(JS_ARGV(cx, vpn)[0])){
 	if (!JS_ConvertArguments(cx, argc, &jsval, "S", &conninfo)) {
 		return JS_TRUE;
 	}
@@ -5332,34 +5549,41 @@ if (JSVAL_IS_NULL(jsval)) {
 		conn = PQconnectStartParams(keywords, values, 0); //No extra parsing of the dbname, to smuggle a connectionstring into it, just use the parameters
 	}
 #endif
-	
+	//Make a connection to the database server in a nonblocking manner.
 	if (conn != NULL && PQstatus(conn) != CONNECTION_BAD) {
 		do {
-			//Make a connection to the database server in a nonblocking manner.
 			status = PQconnectPoll(conn);
 		} while (status != PGRES_POLLING_FAILED && status != PGRES_POLLING_OK);
 	} else {
 		status = PGRES_POLLING_FAILED; //well, this is not 100% true, but the connection is bad anyway, just call the onError;
+
 	}
+	//we are connected, create a object
+	PQsetnonblocking(conn, 1);
 	obj = JS_NewObjectForConstructor(cx, vpn);
-	JS_SET_RVAL(cx, vpn, OBJECT_TO_JSVAL(obj));
-	//socket = PQsocket(conn);
+	JS_DefineFunctions(cx, obj, apepostgresql_funcs);
+		JS_SET_RVAL(cx, vpn, OBJECT_TO_JSVAL(obj));
+	//preparing the postgresql handle and the async sockets
 	struct _ape_postgresql_data *myhandle;
 	myhandle = (struct _ape_postgresql_data*) xmalloc(sizeof(*myhandle));
 	myhandle->conn = conn;
+	fd = PQsocket(myhandle->conn);
+	prepare_ape_socket (fd, g_ape);
+	g_ape->co[fd]->fd = fd;
+	g_ape->co[fd]->stream_type = STREAM_DELEGATE;
+	g_ape->co[fd]->callbacks.on_read = ape_postgresql_io_read;
+	g_ape->co[fd]->callbacks.on_write = ape_postgresql_io_write;
+	g_ape->co[fd]->data = myhandle;
 	myhandle->jspostgresql = obj;
 	myhandle->cx = cx;
 	myhandle->data = NULL;
+	myhandle->state = SQL_NEED_QUEUE;
+	myhandle->queue.head = NULL;
+	myhandle->queue.foot = NULL;
 	JS_SetPrivate(cx, obj, myhandle);
-	JS_DefineFunctions(cx, obj, apepostgresql_funcs);
-	if (status == PGRES_POLLING_FAILED) {
-		myhandle->callback = callbackError;
-	} else {
-		myhandle->callback = callbackSuccess;
-	}
+	events_add(g_ape->events, fd, EVENT_READ|EVENT_WRITE);
+	myhandle->callback = (status == PGRES_POLLING_FAILED) ? callbackError : callbackSuccess;
 	JS_CallFunctionValue(cx, myhandle->jspostgresql, myhandle->callback, 0, NULL, &rval);
-
-	/*closing*/
 	return JS_TRUE;
 }
 #endif

@@ -15,7 +15,10 @@ var status = pgsql.status();
 for (var k in status) {
 	Ape.log('\t' + k + ':\t' + status[k]);
  }
-
+pgsql.query("SELECT pg_tables.* FROM pg_tables pg_tables", function(res, code) {
+	Ape.log(res);
+	Ape.log(code);
+});
 //pgsql.query("insert into nonextistingTable (foo, bar) Values (NULL, '');
 //Ape.log(psql.errorString());
 delete (pgsql);
