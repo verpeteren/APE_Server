@@ -13,7 +13,7 @@ DEBUGFLAGS=-g -ggdb
 PROFILEFLAGS=-pg -profile
 # -fdump-rtl-expand
 endif
-CFLAGS=-Wall -O2 -minline-all-stringops -I ./deps/udns-0.0.9/
+CFLAGS=-Wall -O2 -minline-all-stringops -I ./deps/udns-0.0.9/ -Wno-unused-but-set-variable
 LFLAGS=-rdynamic -ldl -lm -lpthread
 CC=gcc -D_GNU_SOURCE
 RM=rm -f

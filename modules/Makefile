@@ -33,12 +33,12 @@ endif
 
 include ./platform.mk
 ifdef DARWIN_BUILD
-CFLAGS=-Wall -O2 -minline-all-stringops
+CFLAGS=-Wall -O2 -minline-all-stringops -Wno-unused-but-set-variable -Wno-unused-function
 CLFLAGS=-bundle -undefined suppress -flat_namespace
 endif
 
 ifdef LINUX_BUILD
-CFLAGS=-Wall -g -minline-all-stringops -shared -fPIC -rdynamic
+CFLAGS=-Wall -g -minline-all-stringops -shared -fPIC -rdynamic -Wno-unused-but-set-variable -Wno-unused-function
 CLFLAGS=-Wl,-soname,$(SPIDERMONKEYMOD)
 endif
 
