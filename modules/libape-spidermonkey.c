@@ -2152,9 +2152,10 @@ static JSFunctionSpec apemysql_funcs_static[] = {
 #ifdef _USE_POSTGRESQL
 static void postgresql_query_success(struct _ape_postgresql_data *myhandle, int code)
 {
-	int nRows, nFields, row, field ;
+	int nRows, nFields, row, field;
+	struct postgresql_query *query;
 	JSObject *record, *resultArray, *iterator;
-	char *ckeyword, *cvalue;
+	char *ckeyword, *cvalue, *statement;
 	Oid datatype;
 	unsigned int l;
 	jsval value;
@@ -2210,10 +2211,10 @@ static void postgresql_query_success(struct _ape_postgresql_data *myhandle, int 
 	} else {
 	}
 	JS_CallFunctionValue(myhandle->cx, myhandle->jspostgresql, queue->callback, 2, params, &rval);
-
-	
-	JS_free(myhandle->cx, queue->query);
-	//free(queue->res);
+	query = queue->query;
+	statement = (char *) query->statement;
+	JS_free(myhandle->cx, statement);
+	free(query);
 	free(queue);
 	apepostgresql_shift_queue(myhandle);
 }
@@ -2231,19 +2232,12 @@ static void apepostgresql_shift_queue(struct _ape_postgresql_data *myhandle)
 	if (myhandle->queue.head == NULL || myhandle->state != SQL_READY_FOR_QUERY) {
 		return;
 	}
-	/*res_buf = xmalloc(sizeof(char) * basemem);
-	res = mysac_init_res(res_buf, basemem);
-*/
 	queue = myhandle->queue.head;
-/*	queue->res = res;*/
 	myhandle->state = SQL_NEED_QUEUE;
 	myhandle->data = queue;
 	if ((myhandle->queue.head = queue->next) == NULL) {
 		myhandle->queue.foot = NULL;
 	}
-	//todo:get the real sql
-	////res = PQexec(myhandle->conn, "SELECT * FROM pg_catalog.pg_tables;");//todo change this into PQsendQueryPrepared
-	//rc = PQsendQuery(myhandle->conn, "SELECT * FROM pg_catalog.pg_tables;");//todo: change this into PQsendQueryParams
 	query = queue->query;
 	statement = (char *) query->statement;
 	rc = PQsendQuery(myhandle->conn, statement);//todo: change this into PQsendQueryParams
