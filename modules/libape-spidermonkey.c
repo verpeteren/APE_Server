@@ -5483,13 +5483,13 @@ static void apepostgresql_finalize(JSContext *cx, JSObject *jspostgresql)
  * @public
  * @author Peter Reijnders <peter.reijnders@verpeteren.nl>
  *
- * @param {string} connectionstring String with keywords=value
+ * @param {string|object} parameters
+ * <p>If parameters is a string, that it should be a 'keyword1=value1 keyword2=value2'</p>
+ * <p>If parameters is a object, it should be a {'keyword1: 'value1', 'keyword2': 'value2'}</p>
  * <p>Please refer to the <a href="http://www.postgresql.org/docs/current/static/libpq-connect.html#LIBPQ-PARAMKEYWORDS">postgreSQL documentation</i> for valid parameters.</p>
  * <p>It is preferred to use the hostaddr parameter with a resolved ip address, to avoid the blocking Unix api getHostByName. The parameter host can be supplied as well, as postgresql might use this for authentication.</p>
  *
- * @param {function} onConnect Function to be executed on Connect
- * @param {function} onError Function to be exectuted when no connection could be established
- * @returns {Ape.PostgreSQL}
+ * @returns {Ape.PostgreSQL} returns an object on success
  *
  * @example
  * //Database connection
@@ -5528,16 +5528,14 @@ if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[2], JSTYPE_FUNCTION, &callbackError)) 
 }*/
 if (JSVAL_IS_NULL(jsval)) {
 	return JS_TRUE;
-} else if (JSVAL_IS_STRING(JS_ARGV(cx, vpn)[0])){
+} else if (JSVAL_IS_STRING(JS_ARGV(cx, vpn)[0])) {
 	if (!JS_ConvertArguments(cx, argc, &jsval, "S", &conninfo)) {
 		return JS_TRUE;
 	}
 	cconninfo = JS_EncodeString(cx, conninfo);
 	conn = PQconnectStart(xstrdup(cconninfo));
 	JS_free(cx, cconninfo);
-	}
-	//libpq >=9.0
-	else if(JSVAL_IS_OBJECT(jsval)){
+	} else if (JSVAL_IS_OBJECT(jsval)) {
 		JSObject *options;
 		if (!JS_ConvertArguments(cx, argc, &jsval, "o", &options)) {
 			return JS_TRUE;
@@ -5547,19 +5545,35 @@ if (JSVAL_IS_NULL(jsval)) {
 		const char *values[27] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 		char *cproperty;
 		int keywordCount = 0;
+		int length = 0;
+		size_t i = 0;
 		if (options != NULL){
-			size_t i = 0;
 			for (i = 0; i < sizeof(allowedKeys) / sizeof(allowedKeys[0]); i++) {
 				if (JS_GetProperty(cx, options, allowedKeys[i], &jsval) && JSVAL_IS_STRING(jsval)) {
 					cproperty = JS_EncodeString(cx, JSVAL_TO_STRING(jsval));
 					keywords[keywordCount] = xstrdup(allowedKeys[i]);
 					values[keywordCount] = xstrdup(cproperty);
+					length += strlen(cproperty) + strlen(values[keywordCount]) + 2; // extra space for '=' and ' ';
 					JS_free(cx, cproperty);
 					keywordCount++;
 				}
 			}
 		}
+#if 0	//libpq >=9.0
 		conn = PQconnectStartParams(keywords, values, 0); //No extra parsing of the dbname, to smuggle a connectionstring into it, just use the parameters
+#else
+		cconninfo = (char *) xmalloc(sizeof(char) * (length + 1));
+		memset(cconninfo, '\0' , length);
+		for ( i = 0; i < keywordCount; i++) {
+			strcat(cconninfo, keywords[i]);
+			strcat(cconninfo, "=");
+			strcat(cconninfo, values[i]);
+			strcat(cconninfo, " ");
+		}
+		conn = PQconnectStart(xstrdup(cconninfo));
+		printf("---_>%s\n", cconninfo);
+		free(cconninfo);
+#endif 
 	}
 	//Make a connection to the database server in a nonblocking manner.
 	if (conn != NULL && (statusType = PQstatus(conn)) != CONNECTION_BAD) {
@@ -5602,6 +5616,12 @@ if (JSVAL_IS_NULL(jsval)) {
 		myhandle->state = SQL_READY_FOR_QUERY;
 	}
 	return JS_TRUE;
+	/**
+	 * KNOW Problems:
+	 *  - if the postgresql server terminates the connection, this is logged but ape does not respond anymore (ctrl-c)
+	 *  - the 2nd query is not move in the queue
+	 *	- libpq<9.0 will not compile due to PQconncetStartParams, but is probably a little faster
+	 * */
 }
 #endif
 
