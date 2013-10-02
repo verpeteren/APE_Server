@@ -8,7 +8,7 @@ Ape.PostgreSQL.onError = function(){
 	Ape.log(this.errorString());
 }
 
-var pgsql = new Ape.PostgreSQL("hostaddr=10.0.0.25 dbname=apedevdb user=apedev password=vedepa port=5432", Ape.PostgreSQL.onConnect, Ape.PostgreSQL.onError);
+var pgsql = new Ape.PostgreSQL('hostaddr=10.0.0.25 dbname=apedevdb user=apedev password=vedepa port=5432');
 
 Ape.log(pgsql);
 var status = pgsql.status();
@@ -19,6 +19,31 @@ pgsql.query("SELECT pg_tables.* FROM pg_tables pg_tables", function(res, code) {
 	Ape.log(res);
 	Ape.log(code);
 });
+
+var pgsqlo = new Ape.PostgreSQL({'hostaddr': '10.0.0.25', 'dbname': 'apedevdb', 'user': 'apedev', 'password': 'vedepa', 'port': '5432'});
+
+Ape.log(pgsqlo);
+var status = pgsqlo.status();
+for (var k in status) {
+	Ape.log('\t' + k + ':\t' + status[k]);
+ }
+pgsqlo.query("SELECT nspname FROM pg_catalog.pg_namespace", function(res, code) {
+	Ape.log(res);
+	Ape.log(code);
+});
+
+var pgsqlo = new Ape.PostgreSQL();
+
+
+
+//pgsql.query("insert into nonextistingTable (foo, bar) Values (NULL, '');
+//Ape.log(psql.errorString());
+delete (pgsql);
+
+//var sql2 = new Ape.PostgreSQL({';
+
+
+
 //pgsql.query("insert into nonextistingTable (foo, bar) Values (NULL, '');
 //Ape.log(psql.errorString());
 delete (pgsql);
