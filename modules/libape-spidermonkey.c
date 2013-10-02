@@ -183,11 +183,21 @@ static void apemysql_shift_queue(struct _ape_mysql_data *myhandle);
 #endif
 
 #ifdef _USE_POSTGRESQL
+struct postgresql_query{
+	const char *statement;
+	int nParams;
+	const Oid *paramTypes;
+	const char * const *paramValues;
+	const int *paramLengths;
+	const int *paramFormats;
+};
+
 struct _ape_postgresql_queue {
 	struct _ape_postgresql_queue	*next;
 	//MYSAC_RES *res;
-	char *query;
-	unsigned int query_len;
+	//char *query;
+	struct postgresql_query *query;
+	//unsigned int query_len;
 	jsval callback;
 };
 
@@ -2210,10 +2220,11 @@ static void postgresql_query_success(struct _ape_postgresql_data *myhandle, int 
 
 
 static void apepostgresql_shift_queue(struct _ape_postgresql_data *myhandle)
-{
+{	
+	struct postgresql_query *query;
 	struct _ape_postgresql_queue *queue;
 	int rc;
-	char * query;
+	char *statement;
 	rc = PQsendQuery(myhandle->conn, myhandle->data);//todo: change this into PQsendQueryParams
 	//int basemem = (1024*1024);
 	///char *res_buf;*/
@@ -2233,8 +2244,9 @@ static void apepostgresql_shift_queue(struct _ape_postgresql_data *myhandle)
 	//todo:get the real sql
 	////res = PQexec(myhandle->conn, "SELECT * FROM pg_catalog.pg_tables;");//todo change this into PQsendQueryPrepared
 	//rc = PQsendQuery(myhandle->conn, "SELECT * FROM pg_catalog.pg_tables;");//todo: change this into PQsendQueryParams
-	query = (char *) queue->query;
-	rc = PQsendQuery(myhandle->conn, query);//todo: change this into PQsendQueryParams
+	query = queue->query;
+	statement = (char *) query->statement;
+	rc = PQsendQuery(myhandle->conn, statement);//todo: change this into PQsendQueryParams
 	if (rc != 0 || PQflush(myhandle->conn)) {
 		//failure
 		myhandle->on_success = NULL;
@@ -2244,13 +2256,13 @@ static void apepostgresql_shift_queue(struct _ape_postgresql_data *myhandle)
 	myhandle->on_success = postgresql_query_success;
 }
 
-static struct _ape_postgresql_queue *apepostgresql_push_queue(struct _ape_postgresql_data *myhandle, char *query, unsigned int query_len, jsval callback)
+static struct _ape_postgresql_queue *apepostgresql_push_queue(struct _ape_postgresql_data *myhandle, struct postgresql_query *query/*, unsigned int query_len*/, jsval callback)
 {
 	struct _ape_postgresql_queue *nqueue;
 	nqueue = xmalloc(sizeof(*nqueue));
 	nqueue->next = NULL;
 	nqueue->query = query;
-	nqueue->query_len = query_len;
+	//nqueue->query_len = query_len;
 	nqueue->callback = callback;
 	//nqueue->res = NULL;
 	if (myhandle->queue.foot == NULL) {
@@ -2294,20 +2306,24 @@ static struct _ape_postgresql_queue *apepostgresql_push_queue(struct _ape_postgr
  */
 APE_JS_NATIVE(apepostgresql_sm_query)
 //{
-	JSString *query;
+	JSString *statement;
 	struct _ape_postgresql_data *myhandle;
+	struct postgresql_query *query;
 	jsval callback;
 	JSObject *obj = JS_THIS_OBJECT(cx, vpn);
 	if ((myhandle = JS_GetPrivate(cx, obj)) == NULL) {
 		return JS_TRUE;
 	}
-	if (!JS_ConvertArguments(cx, 1, JS_ARGV(cx, vpn), "S", &query)) {
+	if (!JS_ConvertArguments(cx, 1, JS_ARGV(cx, vpn), "S", &statement)) {
 		return JS_TRUE;
 	}
 	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[1], JSTYPE_FUNCTION, &callback)) {
 		return JS_TRUE;
 	}
-	apepostgresql_push_queue(myhandle, JS_EncodeString(cx, query), JS_GetStringEncodingLength(cx, query), callback);
+	query = xmalloc(sizeof(query));
+	query->statement = xstrdup(JS_EncodeString(cx, statement));
+	printf("%d > %s\n", __LINE__, query->statement);
+	apepostgresql_push_queue(myhandle, query/*, JS_GetStringEncodingLength(cx, statement)*/, callback);
 	return JS_TRUE;
 }
 
