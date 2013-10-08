@@ -3,7 +3,7 @@ Ape.addEvent('init', function() {
 		//include('test/Systemcmd.js');
 		//include('test/Hostname.js');
 		//include('test/MySQL.js');
-	    	include('test/PostgreSQL.js');
+	    include('test/PostgreSQL.js');
 		//include('test/Socket.js');
 		//include('test/Pipes.js');
 		//include('test/MeteorLeak.js');//this test will harm your server!!!

@@ -18,7 +18,7 @@ for (var k in status) {
 pgsql.query('SELECT pg_tables.* FROM pg_tables pg_tables', function(res, code) {
 	Ape.log(res);
 	Ape.log(code);
-	pgsql.query('SELECT pg_tables.* FROM pg_tables pg_tables', function(res, code) {
+	pgsql.query('SELECT pg.* FROM pg_tables pg', function(res, code) {
 		Ape.log(res);
 		Ape.log(code);
 });
@@ -35,11 +35,11 @@ var status = pgsqlo.status();
 for (var k in status) {
 	Ape.log('\t' + k + ':\t' + status[k]);
  }
-pgsqlo.query('SELECT nspname FROM pg_catalog.pg_namespace', function(res, code) {
+pgsqlo.query('SELECT nspname as pp FROM pg_catalog.pg_namespace', function(res, code) {
 	Ape.log(res);
 	Ape.log(code);
 });
-pgsqlo.query('SELECT nspname as pp FROM pg_catalog.pg_namespace', function(res, code) {
+pgsqlo.query('SELECT nspname as p1 FROM pg_catalog.pg_namespace', function(res, code) {
 	Ape.log(res);
 	Ape.log(code);
 });

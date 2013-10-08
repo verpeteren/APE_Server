@@ -95,5 +95,4 @@ uninstall:
 
 clean:
 	@$(RM) $(EXEC) $(tmpdir)/*.o
-	@rmdir $(tmpdir)
 	@cd ./modules&&make clean&&cd ..
