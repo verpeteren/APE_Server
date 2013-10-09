@@ -31,6 +31,7 @@
 #include <jsapi.h>
 #include <stdio.h>
 #include <glob.h>
+#include <limits.h>
 #include <netdb.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -2152,16 +2153,17 @@ static JSFunctionSpec apemysql_funcs_static[] = {
 #ifdef _USE_POSTGRESQL
 static void postgresql_query_success(struct _ape_postgresql_data *myhandle, int code)
 {
-	int nRows, nFields, row, field;
+	int nRows, nFields, row, field, affected;
 	struct postgresql_query *query;
 	JSObject *record, *resultArray, *iterator;
 	char *ckeyword, *cvalue, *statement;
 	Oid datatype;
+	unsigned long lastOid;
 	unsigned int l;
 	jsval value;
 	PGresult *res;
 	ExecStatusType status;
-	jsval params[2], rval;
+	jsval params[4], rval;
 	myhandle->state = SQL_READY_FOR_QUERY;
 	myhandle->on_success = NULL;
 	struct _ape_postgresql_queue *queue = myhandle->data;
@@ -2169,6 +2171,7 @@ static void postgresql_query_success(struct _ape_postgresql_data *myhandle, int 
 	//Create an array
 	resultArray = JS_NewArrayObject(myhandle->cx, 0, NULL);
 	JS_AddObjectRoot(myhandle->cx, &resultArray);
+	affected = 0;
 	while (1) {
 		res = PQgetResult(myhandle->conn);
 		if (res != NULL) {
@@ -2212,6 +2215,8 @@ static void postgresql_query_success(struct _ape_postgresql_data *myhandle, int 
 				default:
 					break;
 			}
+			lastOid = (unsigned long) PQoidValue(res);
+			affected += atoi(PQcmdTuples(res));
 			PQclear(res);
 		} else {
 			break;
@@ -2220,12 +2225,22 @@ static void postgresql_query_success(struct _ape_postgresql_data *myhandle, int 
 	if (code < 0 ) {
 		params[0] = JSVAL_FALSE;
 		params[1] = INT_TO_JSVAL(code);
+		params[2] = JSVAL_FALSE;
+		params[3] = JSVAL_FALSE;
+
 	} else {
 		params[0] = OBJECT_TO_JSVAL(resultArray);
 		params[1] = JSVAL_FALSE;
+		params[2] = INT_TO_JSVAL(affected);
+		if (lastOid < INT_MAX ) {
+			params[3] = INT_TO_JSVAL( (int) lastOid);
+		} else {
+			jsval jslast;
+			params[3] = JS_NewNumberValue(myhandle->cx, (double) lastOid, &jslast);
+		}
 	}
 	JS_RemoveObjectRoot(myhandle->cx, &resultArray);
-	JS_CallFunctionValue(myhandle->cx, myhandle->jspostgresql, queue->callback, 2, params, &rval);
+	JS_CallFunctionValue(myhandle->cx, myhandle->jspostgresql, queue->callback, 4, params, &rval);
 	query = queue->query;
 	statement = (char *) query->statement;
 	JS_free(myhandle->cx, statement);
