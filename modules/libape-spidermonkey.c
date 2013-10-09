@@ -184,21 +184,15 @@ static void apemysql_shift_queue(struct _ape_mysql_data *myhandle);
 #endif
 
 #ifdef _USE_POSTGRESQL
-struct postgresql_query{
-	const char *statement;
-	int nParams;
-	const Oid *paramTypes;
-	const char * const *paramValues;
-	const int *paramLengths;
-	const int *paramFormats;
-};
 
 struct _ape_postgresql_queue {
 	struct _ape_postgresql_queue	*next;
-	//MYSAC_RES *res;
-	//char *query;
-	struct postgresql_query *query;
-	//unsigned int query_len;
+	const char *statement;
+	int nParams;
+	/*const */char * /*const*/ *paramValues;
+	/*const*/ int *paramLengths;
+	/*const Oid *paramTypes;
+	const int *paramFormats;*/
 	jsval callback;
 };
 
@@ -2154,9 +2148,9 @@ static JSFunctionSpec apemysql_funcs_static[] = {
 static void postgresql_query_success(struct _ape_postgresql_data *myhandle, int code)
 {
 	int nRows, nFields, row, field, affected;
-	struct postgresql_query *query;
-	JSObject *record, *resultArray, *iterator;
-	char *ckeyword, *cvalue, *statement;
+	int i;
+	JSObject *record, *resultArray;
+	char *ckeyword, *cvalue, *statement, **val;
 	Oid datatype;
 	unsigned long lastOid;
 	unsigned int l;
@@ -2183,7 +2177,6 @@ static void postgresql_query_success(struct _ape_postgresql_data *myhandle, int 
 				case PGRES_TUPLES_OK:
 					nRows = PQntuples(res);
 					nFields = PQnfields(res);
-					iterator = JS_NewPropertyIterator(myhandle->cx, resultArray);
 					for (row = 0; row < nRows; row++) {
 						record = JS_NewObject(myhandle->cx, NULL, NULL, NULL);
 						JS_AddObjectRoot(myhandle->cx, &record);
@@ -2241,10 +2234,17 @@ static void postgresql_query_success(struct _ape_postgresql_data *myhandle, int 
 	}
 	JS_RemoveObjectRoot(myhandle->cx, &resultArray);
 	JS_CallFunctionValue(myhandle->cx, myhandle->jspostgresql, queue->callback, 4, params, &rval);
-	query = queue->query;
-	statement = (char *) query->statement;
+	statement = (char *) queue->statement;
 	JS_free(myhandle->cx, statement);
-	free(query);
+	if (queue->nParams != 0 ) {
+		val = queue->paramValues;
+		for (i = 0; i < queue->nParams; i++) {
+			free(val);
+			val++;
+		}
+		free(queue->paramLengths);
+		free(queue->paramValues);
+	}
 	free(queue);
 	apepostgresql_shift_queue(myhandle);
 }
@@ -2252,11 +2252,8 @@ static void postgresql_query_success(struct _ape_postgresql_data *myhandle, int 
 
 static void apepostgresql_shift_queue(struct _ape_postgresql_data *myhandle)
 {	
-	struct postgresql_query *query;
 	struct _ape_postgresql_queue *queue;
 	int rc;
-	char *statement;
-	//rc = PQsendQuery(myhandle->conn, myhandle->data);//todo: change this into PQsendQueryParams
 	if (myhandle->queue.head == NULL || myhandle->state != SQL_READY_FOR_QUERY) {
 		return;
 	}
@@ -2266,35 +2263,23 @@ static void apepostgresql_shift_queue(struct _ape_postgresql_data *myhandle)
 	if ((myhandle->queue.head = queue->next) == NULL) {
 		myhandle->queue.foot = NULL;
 	}
-	query = queue->query;
-	statement = (char *) query->statement;
-	rc = PQsendQuery(myhandle->conn, statement);//todo: change this into PQsendQueryParams
+	rc = PQsendQuery(myhandle->conn, queue->statement);//todo: change this into PQsendQueryParams
 	if (rc != 0 ) {
 		PQflush(myhandle->conn);
-		/*if (rc != 0 ) {
-			if (PQflush(myhandle->conn)) {
-				printf("flush\n");
-			}
-			//failure
-				fprintf(stderr, "yo, error =: %s", PQerrorMessage(myhandle->conn));
-			//myhandle->on_success = NULL;
-
-			postgresql_query_success(myhandle, rc);
-			return;
-		}*/
 		myhandle->on_success = postgresql_query_success;
 	}
 }
 
-static struct _ape_postgresql_queue *apepostgresql_push_queue(struct _ape_postgresql_data *myhandle, struct postgresql_query *query/*, unsigned int query_len*/, jsval callback)
+static struct _ape_postgresql_queue *apepostgresql_push_queue(struct _ape_postgresql_data *myhandle, char * statement, int *paramLength, char **paramValues, int nParams, jsval callback)
 {
 	struct _ape_postgresql_queue *nqueue;
 	nqueue = xmalloc(sizeof(*nqueue));
 	nqueue->next = NULL;
-	nqueue->query = query;
-	//nqueue->query_len = query_len;
+	nqueue->statement = statement;
+	nqueue->nParams = nParams;
+	nqueue->paramValues = paramValues;
+	nqueue->paramLengths = paramLength;
 	nqueue->callback = callback;
-	//nqueue->res = NULL;
 	if (myhandle->queue.foot == NULL) {
 		myhandle->queue.head = nqueue;
 	} else {
@@ -2308,7 +2293,6 @@ static struct _ape_postgresql_queue *apepostgresql_push_queue(struct _ape_postgr
 	}
 	return nqueue;
 }
-
 
 /**
  * Execute a postgresql query.
@@ -2336,23 +2320,67 @@ static struct _ape_postgresql_queue *apepostgresql_push_queue(struct _ape_postgr
  */
 APE_JS_NATIVE(apepostgresql_sm_query)
 //{
-	JSString *statement;
 	struct _ape_postgresql_data *myhandle;
-	struct postgresql_query *query;
-	jsval callback;
-	JSObject *obj = JS_THIS_OBJECT(cx, vpn);
+	char *cvalue, *cstatement;
+	char * *paramValues;
+	char * *val;
+	int *paramLengths, i, *len, nParams;
+	jsval callback, paramList, value;
+	JSObject *obj, *iterator, *params;
+	JSString *statement, *svalue;
+	JSPropertyDescriptor desc;
+	jsid idp;
+	jsuint paramCount;
+	
+	obj = JS_THIS_OBJECT(cx, vpn);
 	if ((myhandle = JS_GetPrivate(cx, obj)) == NULL) {
 		return JS_TRUE;
 	}
 	if (!JS_ConvertArguments(cx, 1, JS_ARGV(cx, vpn), "S", &statement)) {
 		return JS_TRUE;
 	}
-	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[1], JSTYPE_FUNCTION, &callback)) {
+	if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[2], JSTYPE_FUNCTION, &callback)) {
 		return JS_TRUE;
 	}
-	query = xmalloc(sizeof(query));
-	query->statement = xstrdup(JS_EncodeString(cx, statement));
-	apepostgresql_push_queue(myhandle, query/*, JS_GetStringEncodingLength(cx, statement)*/, callback);
+	//Now that we have the statement and the callback, we can go through the Second param: array with values
+	cstatement = xstrdup(JS_EncodeString(cx, statement));
+	paramList = JS_ARGV(cx, vpn)[1];
+	if (!JSVAL_IS_NULL(paramList) && JSVAL_IS_OBJECT(paramList)) {
+		params = JSVAL_TO_OBJECT(paramList);
+		iterator = JS_NewPropertyIterator(cx, params);
+		JS_GetArrayLength(cx, params, &paramCount);
+		nParams = paramCount;
+		paramLengths = xmalloc(sizeof(paramLengths) * nParams);
+		paramValues = xmalloc(sizeof(paramValues) * nParams);
+		i = 0;
+		len = paramLengths;
+		val = paramValues;
+		if (iterator) {
+			while(JS_NextProperty(cx, iterator, &idp)) {
+				if (idp == JSID_VOID) {
+					break;
+				}
+				if(JS_GetPropertyDescriptorById(cx, params, idp, 0, &desc)){
+					value = desc.value;
+					if (JSVAL_IS_STRING(value)) {
+						svalue = JS_ValueToString(cx, value);
+						cvalue = JS_EncodeString(cx, svalue);
+						*len = strlen(cvalue);
+						*val = xstrdup(cvalue);
+						len++;
+						val++;
+						JS_free(cx, cvalue);
+					}
+				}
+				i++;
+			}
+		}
+	}else/* (JSVAL_IS_NULL(paramList))*/ {
+		paramLengths = NULL;
+		paramValues = NULL;
+		nParams = 0;
+	} 
+	apepostgresql_push_queue(myhandle, cstatement, paramLengths, paramValues, nParams, callback);
 	return JS_TRUE;
 }
 
@@ -2393,7 +2421,7 @@ APE_JS_NATIVE(apepostgresql_sm_errorstring)
  * @public
  *
  * @returns {object} A javascript object with the actual values
- *
+ *:
  * @example
  * var status = pgsql.status();
  * for (var k in status) {
@@ -2520,8 +2548,7 @@ static void ape_postgresql_io_read(ape_socket *client, ape_buffer *buf, size_t o
 		}
 	} else {
 		if ( myhandle->on_success != NULL ) { 
-			myhandle->on_success(myhandle, -1);//FIXME: if postgresql is offline, this throws an SEGFAULT
-		//FIXME: if postgresql server restarts, then APE locksup with a FATAL:  terminating connection due to administrator command
+			myhandle->on_success(myhandle, -1);
 		}
 	}
 }
@@ -2534,20 +2561,14 @@ static void ape_postgresql_io_write(ape_socket *client, acetables *g_ape)
 	if (PQflush(myhandle->conn) != 1) {
 		return;
 	}
-	if (queue != NULL && queue->query != NULL) {
-	}
-	//ape_postgresql_handle_io(myhandle, g_ape);
-	}
-
-
+}
 
 static JSFunctionSpec apepostgresql_funcs[] = {
 	JS_FS("onConnect", ape_sm_stub, 0, 0),
 	JS_FS("onError", ape_sm_stub, 0, 0),
 	JS_FS("errorString", apepostgresql_sm_errorstring, 0, 0),
 	JS_FS("status", apepostgresql_sm_status, 0, 0),
-	JS_FS("query", apepostgresql_sm_query, 2, 0),
-	//JS_FS("getInsertId", apepostgresql_sm_insert_id, 0, 0),
+	JS_FS("query", apepostgresql_sm_query, 3, 0),
 	JS_FS_END
 };
 
@@ -5559,21 +5580,13 @@ JSString *conninfo;
 char *cconninfo;
 PostgresPollingStatusType status;
 ConnStatusType statusType;
-//jsval callbackSuccess, callbackError;
 int fd;
-//PGresult *result;
 PGconn *conn = NULL;
 JSObject *obj;
 jsval rval;
 jsval params[1];
 struct _ape_postgresql_data *myhandle;
 jsval jsval = JS_ARGV(cx, vpn)[0];
-/*if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[1], JSTYPE_FUNCTION, &callbackSuccess)) {
-	return JS_TRUE;
-}
-if (!JS_ConvertValue(cx, JS_ARGV(cx, vpn)[2], JSTYPE_FUNCTION, &callbackError)) {
-	return JS_TRUE;
-}*/
 if (JSVAL_IS_NULL(jsval)) {
 	return JS_TRUE;
 } else if (JSVAL_IS_STRING(JS_ARGV(cx, vpn)[0])) {
@@ -5610,7 +5623,7 @@ if (JSVAL_IS_NULL(jsval)) {
 #if 0	//libpq >=9.0
 		conn = PQconnectStartParams(keywords, values, 0); //No extra parsing of the dbname, to smuggle a connectionstring into it, just use the parameters
 #else
-		cconninfo = (char *) xmalloc(sizeof(char) * (length + 1));
+		cconninfo = xmalloc(sizeof(char) * (length + 1));
 		memset(cconninfo, '\0' , length);
 		for ( i = 0; i < keywordCount; i++) {
 			strcat(cconninfo, keywords[i]);
@@ -5633,7 +5646,7 @@ if (JSVAL_IS_NULL(jsval)) {
 	PQsetnonblocking(conn, 1);
 	obj = JS_NewObjectForConstructor(cx, vpn);
 	//preparing the postgresql handle and the async sockets
-	myhandle = (struct _ape_postgresql_data*) xmalloc(sizeof(*myhandle));
+	myhandle = xmalloc(sizeof(*myhandle));
 	myhandle->conn = conn;
 	fd = PQsocket(myhandle->conn);
 	myhandle->jspostgresql = obj;

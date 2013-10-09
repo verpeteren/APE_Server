@@ -15,10 +15,10 @@ var status = pgsql.status();
 for (var k in status) {
 	Ape.log('\t' + k + ':\t' + status[k]);
  }
-pgsql.query('SELECT pg_tables.* FROM pg_tables pg_tables', function(res, code, affected, lastOid) {
+pgsql.query('SELECT pg_tables.* FROM pg_tables pg_tables', null, function(res, code, affected, lastOid) {
 	Ape.log(res);
 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
-	pgsql.query('SELECT pg.* FROM pg_tables pg', function(res, code, affected, lastOid) {
+	pgsql.query('SELECT pg.* FROM pg_tables pg', null, function(res, code, affected, lastOid) {
 		Ape.log(res);
 		Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
 	});
@@ -33,11 +33,11 @@ var status = pgsqlo.status();
 for (var k in status) {
 	Ape.log('\t' + k + ':\t' + status[k]);
  }
-pgsqlo.query('SELECT nspname as pp FROM pg_catalog.pg_namespace', function(res, code, affected, lastOid) {
+pgsqlo.query('SELECT nspname as pp FROM pg_catalog.pg_namespace', null, function(res, code, affected, lastOid) {
 	Ape.log(res);
 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
 });
-pgsqlo.query('SELECT nspname as p1 FROM pg_catalog.pg_namespace', function(res, code, affected, lastOid) {
+pgsqlo.query('SELECT nspname as p1 FROM pg_catalog.pg_namespace', null, function(res, code, affected, lastOid) {
 	Ape.log(res);
 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
 });
@@ -53,10 +53,12 @@ var sqls = ['CREATE TABLE IF NOT EXISTS foo (' + '\n' +
 	'INSERT INTO foo (ed, bar) VALUES (1, \'wowest\');',
 	'INSERT INTO foo (ed, bar) VALUES (2, \'coolest\') returning ed;',
 	'INSERT INTO foo (ed, bar) VALUES (3, \'wow\') returning t;',
-	'INSERT INTO foo (ed, bar) VALUES (4, \'cool\') returning id;'
+	'INSERT INTO foo (ed, bar) VALUES (4, \'cool\') returning id;',
+	'INSERT INTO foo (ed, bar) VALUES (4, \'cool\') returning foo;',
+	'INSERT INTO bar (ed, foo) VALUES (4, \'cool\') returning id;'
 	];
 sqls.each(function(sql, i) {
-	pgsqlo.query(sql,  function(res, code, affected, lastOid) {
+	pgsqlo.query(sql, null,  function(res, code, affected, lastOid) {
 		Ape.log(sql);
 		Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
 		Ape.log(res);
