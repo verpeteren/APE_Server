@@ -46,16 +46,24 @@ pgsqlo.query('SELECT nspname as p1 FROM pg_catalog.pg_namespace', function(res, 
 
 Ape.log(' =====================================>>> \n Create table test\n' );
 //postgresql server >=9.1
-var sql = 'CREATE TABLE IF NOT EXISTS foo (' + '\n' +
+var sqls = ['CREATE TABLE IF NOT EXISTS foo (' + '\n' +
 					' id SERIAL,' + '\n' +
-					' bar varchar' +'\n' +
-					');';
-Ape.log(sql);
-pgsqlo.query(sql,  function(res, code) {
-	Ape.log(res);
-	Ape.log(code);
+					' ed INTEGER,' + '\n' +
+					' t timestamp DEFAULT now(),' +'\n' +
+					' bar varchar(25)' +'\n' +
+					');', 
+	'INSERT INTO foo (ed, bar) VALUES (2, \'cool\') returning id;',
+	'INSERT INTO foo (ed, bar) VALUES (3, \'coolest\') returning ed;',
+	'INSERT INTO foo (ed, bar) VALUES (4, \'wow\') returning t;',
+	'INSERT INTO foo (ed, bar) VALUES (5, \'wowest\');'
+	];
+sqls.each(function(sql, i) {
+	Ape.log(sql);
+	pgsqlo.query(sql,  function(res, code) {
+		Ape.log(res);
+		Ape.log(code);
+	});
 });
-
 
 
 
