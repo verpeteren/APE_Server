@@ -10,7 +10,7 @@ Ape.PostgreSQL.onError = function(){
 
 Ape.log(' =====================================>>> \n Connection string test\n' );
 var pgsql = new Ape.PostgreSQL('hostaddr=10.0.0.25 dbname=apedevdb user=apedev password=vedepa port=5432');
-Ape.log(pgsql);
+/*Ape.log(pgsql);
 var status = pgsql.status();
 for (var k in status) {
 	Ape.log('\t' + k + ':\t' + status[k]);
@@ -48,7 +48,7 @@ var sqls = ['CREATE TABLE IF NOT EXISTS foo (' + '\n' +
 					' id SERIAL PRIMARY KEY,' + '\n' +
 					' ed INTEGER,' + '\n' +
 					' t TIMESTAMP DEFAULT now(),' +'\n' +
-					' bar VARCHAR(25)' +'\n' +
+					' bar VARCHAR(32)' +'\n' +
 					') WITH OIDS ;', 
 	'INSERT INTO foo (ed, bar) VALUES (1, \'wowest\');',
 	'INSERT INTO foo (ed, bar) VALUES (2, \'coolest\') RETURNING Ed;',
@@ -64,12 +64,13 @@ sqls.each(function(sql, i) {
 		Ape.log(res);
 	});
 });
-
-pgsqlo.query('INSERT INTO foo (bar) VALUES ($1) RETURNING id;', ['No escapin this!'], function(res, code, affected, lastOid) {
+*/
+pgsql.query('INSERT INTO foo (ed, bar) VALUES ($1, $2) RETURNING id;', ['6', 'Beatnuts` No escapin\' this!'], function(res, code, affected, lastOid) {
 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
 	if (code < 0) {
 		Ape.log(this.errorString());
 	}
 	Ape.log(res);
 });
+
 Ape.log("<<< =====================================\n");

@@ -2234,14 +2234,13 @@ static void postgresql_query_success(struct _ape_postgresql_data *myhandle, int 
 	JS_CallFunctionValue(myhandle->cx, myhandle->jspostgresql, queue->callback, 4, params, &rval);
 	statement = (char *) queue->statement;
 	JS_free(myhandle->cx, statement);
-	/*FIXME:
+	/*fixme: memory leak
 	if (queue->nParams != 0 ) {
 	 	int i;
 	 	char **val;
 		val = (char **) queue->paramValues;
 		for (i = 0; i < queue->nParams; i++) {
-			printf("%d, %s\n" , __LINE__, *val);
-			free(val);
+			JS_free(myhandle->cx, val);
 			val++;
 		}
 		free((int *) queue->paramLengths);
@@ -2328,7 +2327,7 @@ static struct _ape_postgresql_queue *apepostgresql_push_queue(struct _ape_postgr
 APE_JS_NATIVE(apepostgresql_sm_query)
 //{
 	struct _ape_postgresql_data *myhandle;
-	char *cvalue, *cstatement;
+	char  *cstatement;
 	const char * const *paramValues;
 	char **val;
 	const int *paramLengths;
@@ -2336,7 +2335,6 @@ APE_JS_NATIVE(apepostgresql_sm_query)
 	jsval callback, paramList, value;
 	JSObject *obj, *iterator, *params;
 	JSString *statement, *svalue;
-	JSPropertyDescriptor desc;
 	jsid idp;
 	jsuint paramCount;
 	
@@ -2351,47 +2349,34 @@ APE_JS_NATIVE(apepostgresql_sm_query)
 		return JS_TRUE;
 	}
 	//Now that we have the statement and the callback, we can go through the Second param: array with values
-	cstatement = xstrdup(JS_EncodeString(cx, statement));
+	cstatement = JS_EncodeString(cx, statement);
 	paramList = JS_ARGV(cx, vpn)[1];
 	if (!JSVAL_IS_NULL(paramList) && JSVAL_IS_OBJECT(paramList)) {
 		params = JSVAL_TO_OBJECT(paramList);
-		//iterator = JS_NewPropertyIterator(cx, params);
+		iterator = JS_NewPropertyIterator(cx, params);
 		JS_GetArrayLength(cx, params, &paramCount);
 		nParams = paramCount;
 		paramLengths = xmalloc(sizeof(paramLengths) * nParams);
 		paramValues = xmalloc(sizeof(paramValues) * nParams);
-		//i = 0;
-		//len = (int *)paramLengths;
-		//val = (char **) paramValues;
-		//if (iterator) {
-		//	while(JS_NextProperty(cx, iterator, &idp)) {
-		//		if (idp == JSID_VOID) {
-		//			break;
-		//		}
-		//		if(JS_GetPropertyDescriptorById(cx, params, idp, 0, &desc)){
-		//			value = desc.value;
-		//			//if (JSVAL_IS_STRING(value)) {
-		//				svalue = JS_ValueToString(cx, value);
-		//				cvalue = JS_EncodeString(cx, svalue);
-		//				*len = strlen(cvalue);
-		//				*val = xstrdup(cvalue);
-		//				printf("\n\n\n\n\n\n\n\n\n\n%d: %s %s\n", __LINE__, *val, cvalue);
-		//				len++;
-		//				val++;
-		//				JS_free(cx, cvalue);
-		//			//}
-		//		}
-		//		i++;
-		//	}
-		//}
-		//FIXME: faking it
-		char * tt = xstrdup("fakin' it");
-		char **ttt = (char **) paramValues;
-		*ttt=tt;
-		static int pl = 10;
-		
-		paramLengths = &pl;
-	}else/* (JSVAL_IS_NULL(paramList))*/ {
+		i = 0;
+		len = (int *) paramLengths;
+		val = (char **) paramValues;
+		if (iterator) {
+			while(JS_NextProperty(cx, iterator, &idp)) {
+				if (idp == JSID_VOID) {
+					break;
+				}
+				if (JS_GetPropertyById(cx, params, idp, &value)) {
+						svalue = JS_ValueToString(cx, value);
+						*val = JS_EncodeString(cx, svalue);
+						*len = strlen(*val);
+						len++;
+						val++;
+					i++;
+				}
+			}
+		}
+	} else {
 		paramLengths = NULL;
 		paramValues = NULL;
 		nParams = 0;
