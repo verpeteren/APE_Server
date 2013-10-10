@@ -47,3 +47,9 @@ deps/udns*/rblcheck
 deps/udns*/config.log
 deps/udns*/libudns.a
 
+/.cproject
+/modules/.tags
+/modules/.ycm_extra_conf.py
+/modules/.ycm_extra_conf.pyc
+/.project
+/src/.tags
