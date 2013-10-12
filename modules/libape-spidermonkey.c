@@ -2331,7 +2331,7 @@ APE_JS_NATIVE(apepostgresql_sm_query)
 	const char * const *paramValues;
 	char **val;
 	const int *paramLengths;
-	int i, *len, nParams;
+	int *len, nParams;
 	jsval callback, paramList, value;
 	JSObject *obj, *iterator, *params;
 	JSString *statement, *svalue;
@@ -2353,26 +2353,26 @@ APE_JS_NATIVE(apepostgresql_sm_query)
 	paramList = JS_ARGV(cx, vpn)[1];
 	if (!JSVAL_IS_NULL(paramList) && JSVAL_IS_OBJECT(paramList)) {
 		params = JSVAL_TO_OBJECT(paramList);
-		iterator = JS_NewPropertyIterator(cx, params);
 		JS_GetArrayLength(cx, params, &paramCount);
 		nParams = paramCount;
 		paramLengths = xmalloc(sizeof(paramLengths) * nParams);
 		paramValues = xmalloc(sizeof(paramValues) * nParams);
-		i = 0;
-		len = (int *) paramLengths;
-		val = (char **) paramValues;
+		//NewPropertyIterater takes the order inwhich elements were added. if they were pushed, this is ok.
+		len = (int *) paramLengths + nParams - 1;
+		val = (char **) paramValues + nParams - 1;
+		iterator = JS_NewPropertyIterator(cx, params);
 		if (iterator) {
 			while(JS_NextProperty(cx, iterator, &idp)) {
 				if (idp == JSID_VOID) {
 					break;
 				}
 				if (JS_GetPropertyById(cx, params, idp, &value)) {
-						svalue = JS_ValueToString(cx, value);
-						*val = JS_EncodeString(cx, svalue);
-						*len = strlen(*val);
-						len++;
-						val++;
-					i++;
+					svalue = JS_ValueToString(cx, value);
+					*val = JS_EncodeString(cx, svalue);
+					printf("%d %s %d\n", __LINE__, *val, idp);
+					*len = strlen(*val);
+					len--;
+					val--;
 				}
 			}
 		}
