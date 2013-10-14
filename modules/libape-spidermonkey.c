@@ -2331,9 +2331,9 @@ APE_JS_NATIVE(apepostgresql_sm_query)
 	const char * const *paramValues;
 	char **val;
 	const int *paramLengths;
-	int *len, nParams;
-	jsval callback, paramList, value;
-	JSObject *obj, *iterator, *params;
+	int i, *len, nParams;
+	jsval callback, paramList, value, key;
+	JSObject *obj, *params;
 	JSString *statement, *svalue;
 	jsid idp;
 	jsuint paramCount;
@@ -2357,24 +2357,25 @@ APE_JS_NATIVE(apepostgresql_sm_query)
 		nParams = paramCount;
 		paramLengths = xmalloc(sizeof(paramLengths) * nParams);
 		paramValues = xmalloc(sizeof(paramValues) * nParams);
-		//NewPropertyIterater takes the order inwhich elements were added. if they were pushed, this is ok.
-		len = (int *) paramLengths + nParams - 1;
-		val = (char **) paramValues + nParams - 1;
-		iterator = JS_NewPropertyIterator(cx, params);
-		if (iterator) {
-			while(JS_NextProperty(cx, iterator, &idp)) {
-				if (idp == JSID_VOID) {
-					break;
-				}
+		len = (int *) paramLengths;
+		val = (char **) paramValues;
+		JSIdArray *seqs;
+		seqs = JS_Enumerate(cx, params);
+		if (seqs) {
+			for (i = 0; i < nParams; i++) {
+				idp = seqs->vector[i];
+				JS_IdToValue(cx, idp, &key);
+				JS_AddValueRoot(cx ,&key);
 				if (JS_GetPropertyById(cx, params, idp, &value)) {
 					svalue = JS_ValueToString(cx, value);
 					*val = JS_EncodeString(cx, svalue);
-					//printf("%d %s %d\n", __LINE__, *val, idp);
 					*len = strlen(*val);
-					len--;
-					val--;
+					len++;
+					val++;
 				}
+				JS_RemoveValueRoot(cx, &key);
 			}
+			JS_DestroyIdArray(cx, seqs);
 		}
 	} else {
 		paramLengths = NULL;
@@ -5633,7 +5634,6 @@ if (JSVAL_IS_NULL(jsval)) {
 			strcat(cconninfo, " ");
 		}
 		conn = PQconnectStart(xstrdup(cconninfo));
-		printf("---_>%s\n", cconninfo);
 		free(cconninfo);
 #endif 
 	}
@@ -5678,12 +5678,6 @@ if (JSVAL_IS_NULL(jsval)) {
 		myhandle->state = SQL_READY_FOR_QUERY;
 	}
 	return JS_TRUE;
-	/**
-	 * KNOW Problems:
-	 *  - if the postgresql server terminates the connection, this is logged but ape does not respond anymore (ctrl-c)
-	 *  - the 2nd query is not move in the queue
-	 *	- libpq<9.0 will not compile due to PQconncetStartParams, but is probably a little faster
-	 * */
 }
 #endif
 

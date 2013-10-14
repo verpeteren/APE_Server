@@ -14,7 +14,6 @@ Ape.PostgreSQL.onError = function(){
 	for (var k in status) {
 		Ape.log('\t' + k + ':\t' + status[k]);
 	 }
-p
 }
 
 Ape.log(' =====================================>>> \n Connection string test\n' );
@@ -34,8 +33,7 @@ pgsql2.query('SELECT nspname AS pp FROM pg_catalog.pg_namespace', null, function
 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
 });
 Ape.log(' =====================================>>> \n Insert tests\n' );
-var sql;
-/*
+
 //postgresql server >=9.1
 var sqls = ['CREATE TABLE IF NOT EXISTS foo (' + '\n' +
 					' id SERIAL PRIMARY KEY,' + '\n' +
@@ -98,9 +96,9 @@ sqls.each(function(sql, i) {
 
 
 Ape.log(' =====================================>>> \n Parameter tests\n' );
-sql =  'INSERT INTO foo (bar) VALUES ($1) RETURNING id as var;';
-pgsql2.query(sql, ['Beatnuts` No escapin\' this!'], function(res, code, affected, lastOid) {
-	Ape.log(sql);
+sql1 =  'INSERT INTO foo (bar) VALUES ($1) RETURNING id as var;';
+pgsql2.query(sql1, ['Beatnuts` No escapin\' this!'], function(res, code, affected, lastOid) {
+	Ape.log(sql1);
 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
 	if (code < 0 ) {
 		Ape.log(this.errorString());
@@ -111,9 +109,9 @@ pgsql2.query(sql, ['Beatnuts` No escapin\' this!'], function(res, code, affected
 		Ape.log(res);
 	}
 });
-sql = 'INSERT INTO foo (ed) VALUES ($1) RETURNING Id;'; 
-pgsql2.query(sql,[9], function(res, code, affected, lastOid) {
-	Ape.log(sql);
+sql2 = 'INSERT INTO foo (ed) VALUES ($1) RETURNING Id;'; 
+pgsql2.query(sql2,[9], function(res, code, affected, lastOid) {
+	Ape.log(sql2);
 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
 	if (code < 0 ) {
 		Ape.log(this.errorString());
@@ -121,9 +119,9 @@ pgsql2.query(sql,[9], function(res, code, affected, lastOid) {
 		Ape.log(res);
 	}
 });
-sql = 'INSERT INTO foo (t) VALUES ($1) RETURNING Id;';
-pgsql2.query(sql, ['yesterday'], function(res, code, affected, lastOid) {
-	Ape.log(sql);
+sql3 = 'INSERT INTO foo (t) VALUES ($1) RETURNING Id;';
+pgsql2.query(sql3, ['yesterday'], function(res, code, affected, lastOid) {
+	Ape.log(sql3);
 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
 	if (code < 0 ) {
 		Ape.log(this.errorString());
@@ -132,9 +130,9 @@ pgsql2.query(sql, ['yesterday'], function(res, code, affected, lastOid) {
 	}
 });
 
-sql = 'INSERT INTO foo (ed, bar) VALUES ($1, $2);';
-pgsql2.query(sql, [10, 'Beatnuts` No escapin\' this!'], function(res, code, affected, lastOid) {
-	Ape.log(sql);
+sql4 = 'INSERT INTO foo (ed, bar) VALUES ($1, $2);';
+pgsql2.query(sql4, [10, 'Beatnuts` No escapin\' this!'], function(res, code, affected, lastOid) {
+	Ape.log(sql4);
 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
 	if (code < 0 ) {
 		Ape.log(this.errorString());
@@ -142,13 +140,9 @@ pgsql2.query(sql, [10, 'Beatnuts` No escapin\' this!'], function(res, code, affe
 		Ape.log(res);
 	}
 });
-*/
+
 createList = function() {
-	Ape.setTimeout(function() {
-		//FIXME: currently we are using: JS_NewPropertyIterator. this is putting the items into the sequence that we added them to
-		//the list. That is not OK. Therefor the timeout fails.
-		return '{666, 668}';
-	},1000);
+	return '{666, 668}';
 }
 
 var orderingMatters = [];
@@ -156,9 +150,19 @@ orderingMatters.length = 3;
 orderingMatters[0] = 11;
 orderingMatters[1] = createList();
 orderingMatters[2] = 'tst';
-sql = 'INSERT INTO foo (ed, listint, bar) VALUES ($1, $2, $3) RETURNING Id;';-
-pgsql2.query(sql, orderingMatters, function(res, code, affected, lastOid) {
-	Ape.log(sql);
+sql5 = 'INSERT INTO foo (ed, listint, bar) VALUES ($1, $2, $3) RETURNING Id;';-
+pgsql2.query(sql5, orderingMatters, function(res, code, affected, lastOid) {
+	Ape.log(sql5);
+	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
+	if (code < 0 ) {
+		Ape.log(this.errorString());
+	} else {
+		Ape.log(res);
+	}
+});
+sql6 = 'SELECT name, attributes->\'device\' as device FROM products WHERE attributes->\'pages\' > $1';-
+pgsql2.query(sql6, [200], function(res, code, affected, lastOid) {
+	Ape.log(sql6);
 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
 	if (code < 0 ) {
 		Ape.log(this.errorString());
