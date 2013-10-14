@@ -1,49 +1,41 @@
 Ape.log(' =====================================>>> \n Start up for test/PostgreSQL.js\n' );
 Ape.PostgreSQL.onConnect = function(){
+	var status = pgsql.status();
+	for (var k in status) {
+		Ape.log('\t' + k + ':\t' + status[k]);
+	 }
 	Ape.log('Connection successfull');
 }
 
 Ape.PostgreSQL.onError = function(){
 	Ape.log('Could not connect to PostgreSql!');
 	Ape.log(this.errorString());
+	var status = pgsql.status();
+	for (var k in status) {
+		Ape.log('\t' + k + ':\t' + status[k]);
+	 }
+p
 }
-/*
+
 Ape.log(' =====================================>>> \n Connection string test\n' );
-var pgsql = new Ape.PostgreSQL('hostaddr=10.0.0.25 dbname=apedevdb user=apedev password=vedepa port=5432');
-Ape.log(pgsql);
-var status = pgsql.status();
-for (var k in status) {
-	Ape.log('\t' + k + ':\t' + status[k]);
- }
-pgsql.query('SELECT pg_tables.* FROM pg_tables pg_tables', null, function(res, code, affected, lastOid) {
+var pgsql1 = new Ape.PostgreSQL('hostaddr=10.0.0.25 dbname=apedevdb user=apedev password=vedepa port=5432');
+Ape.log(pgsql1);
+pgsql1.query('SELECT pg_tables.* FROM pg_tables pg_tables', null, function(res, code, affected, lastOid) {
 	Ape.log(res);
 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
-	pgsql.query('SELECT pg.* FROM pg_tables pg', null, function(res, code, affected, lastOid) {
-		Ape.log(res);
-		Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
-	});
 });
-
-*/
+delete pgsql1;
 
 Ape.log(' =====================================>>> \n Connection object test\n' );
-var pgsqlo = new Ape.PostgreSQL({'hostaddr': '10.0.0.25', 'dbname': 'apedevdb', 'user': 'apedev', 'password': 'vedepa', 'port': '5432'});
-Ape.log(pgsqlo);
-var status = pgsqlo.status();
-for (var k in status) {
-	Ape.log('\t' + k + ':\t' + status[k]);
- }
+var pgsql2 = new Ape.PostgreSQL({'hostaddr': '10.0.0.25', 'dbname': 'apedevdb', 'user': 'apedev', 'password': 'vedepa', 'port': '5432'});
+Ape.log(pgsql2);
+pgsql2.query('SELECT nspname AS pp FROM pg_catalog.pg_namespace', null, function(res, code, affected, lastOid) {
+	Ape.log(res);
+	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
+});
+Ape.log(' =====================================>>> \n Insert tests\n' );
+var sql;
 /*
-pgsqlo.query('SELECT nspname AS pp FROM pg_catalog.pg_namespace', null, function(res, code, affected, lastOid) {
-	Ape.log(res);
-	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
-});
-pgsqlo.query('SELECT nspname AS p1 FROM pg_catalog.pg_namespace', null, function(res, code, affected, lastOid) {
-	Ape.log(res);
-	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
-});
-*/
-Ape.log(' =====================================>>> \n Create table test\n' );
 //postgresql server >=9.1
 var sqls = ['CREATE TABLE IF NOT EXISTS foo (' + '\n' +
 					' id SERIAL PRIMARY KEY,' + '\n' +
@@ -62,7 +54,7 @@ var sqls = ['CREATE TABLE IF NOT EXISTS foo (' + '\n' +
 	'INSERT INTO foo (ED, BAR, listint) VALUES (8, \'COOL\', \'{1, 1 ,2, 3, 5, 8, 13}\');'	//oh yes you can use array's
 	];
 sqls.each(function(sql, i) {
-	pgsqlo.query(sql, null,  function(res, code, affected, lastOid) {
+	pgsql2.query(sql, null,  function(res, code, affected, lastOid) {
 		Ape.log(sql);
 		Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
 		if (code < 0 ) {
@@ -72,19 +64,55 @@ sqls.each(function(sql, i) {
 		}
 	});
 });
-var sql;
+
+Ape.log(' =====================================>>> \n Hstore tests\n' );
+//
+// apt-get install postgresql-contrib-9.1
+// su postgres
+// pgsql
+// >\connect apedevdb
+//
+
+var dummyBook = {'author': "John Do", 'pages': 123,'category': 'Comics'};
+var sqls = ['CREATE TABLE products (' + '\n' +
+			'	 id serial PRIMARY KEY,' + '\n' +
+			'	name varchar,' + '\n' +
+			'	attributes hstore' + '\n' +
+			');' ,
+	'INSERT INTO products (name, attributes) VALUES (\'Geek Love: A Novel\', \'author    => "Katherine Dunn",  pages     => 368,  category  => fiction\' );',
+	//9.2 'INSERT INTO products (name, attributes) VALUES (\'Blablabla\', \'' + JSON.stringify(dummyBook) + '\'::json::hstore);',
+	'SELECT name, attributes->\'device\' as device FROM products WHERE attributes->\'pages\' > \'300\'',
+	//'SELECT attributes->author::hstore::json FROM products WHERE attributes->\'pages\' > \'300\';'
+	];
+sqls.each(function(sql, i) {
+	pgsql2.query(sql, null,  function(res, code, affected, lastOid) {
+		Ape.log(sql);
+		Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
+		if (code < 0 ) {
+			Ape.log(this.errorString());
+		} else {
+			Ape.log(res);
+		}
+	});
+});
+
+
+Ape.log(' =====================================>>> \n Parameter tests\n' );
 sql =  'INSERT INTO foo (bar) VALUES ($1) RETURNING id as var;';
-pgsqlo.query(sql, ['Beatnuts` No escapin\' this!'], function(res, code, affected, lastOid) {
+pgsql2.query(sql, ['Beatnuts` No escapin\' this!'], function(res, code, affected, lastOid) {
 	Ape.log(sql);
 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
 	if (code < 0 ) {
 		Ape.log(this.errorString());
 	} else {
+		if (res[0]['id'] == '') {
+			Ape.log("-----> POSTGRESQL BUG REPORT 8524 13/10/2013")
+		}
 		Ape.log(res);
 	}
 });
-/*sql = 'INSERT INTO foo (ed) VALUES ($1) RETURNING Id;'; 
-pgsqlo.query(sql,[9], function(res, code, affected, lastOid) {
+sql = 'INSERT INTO foo (ed) VALUES ($1) RETURNING Id;'; 
+pgsql2.query(sql,[9], function(res, code, affected, lastOid) {
 	Ape.log(sql);
 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
 	if (code < 0 ) {
@@ -94,7 +122,7 @@ pgsqlo.query(sql,[9], function(res, code, affected, lastOid) {
 	}
 });
 sql = 'INSERT INTO foo (t) VALUES ($1) RETURNING Id;';
-pgsqlo.query(sql, ['yesterday'], function(res, code, affected, lastOid) {
+pgsql2.query(sql, ['yesterday'], function(res, code, affected, lastOid) {
 	Ape.log(sql);
 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
 	if (code < 0 ) {
@@ -104,22 +132,8 @@ pgsqlo.query(sql, ['yesterday'], function(res, code, affected, lastOid) {
 	}
 });
 
-sql = 'INSERT INTO foo (ed, bar) VALUES ($1, $2) RETURNING Id;';
-ppgsqlo.query(sql, [10, 'Beatnuts` No escapin\' this!'], function(res, code, affected, lastOid) {
-	Ape.log(sql);
-	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
-	if (code < 0 ) {
-		Ape.log(this.errorString());
-	} else {
-		Ape.log(res);
-	}
-});*/
-/*var orderingMatters = [];
-orderingMatters.length = 2;
-orderingMatters[1] = 'tst';
-orderingMatters[0] = 11;
-sql = 'INSERT INTO foo (ed, bar) VALUES ($1, $2) RETURNING Id;';-
-gsqlo.query(sql, orderingMatters, function(res, code, affected, lastOid) {
+sql = 'INSERT INTO foo (ed, bar) VALUES ($1, $2);';
+pgsql2.query(sql, [10, 'Beatnuts` No escapin\' this!'], function(res, code, affected, lastOid) {
 	Ape.log(sql);
 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
 	if (code < 0 ) {
@@ -129,5 +143,28 @@ gsqlo.query(sql, orderingMatters, function(res, code, affected, lastOid) {
 	}
 });
 */
+createList = function() {
+	Ape.setTimeout(function() {
+		//FIXME: currently we are using: JS_NewPropertyIterator. this is putting the items into the sequence that we added them to
+		//the list. That is not OK. Therefor the timeout fails.
+		return '{666, 668}';
+	},1000);
+}
+
+var orderingMatters = [];
+orderingMatters.length = 3;
+orderingMatters[0] = 11;
+orderingMatters[1] = createList();
+orderingMatters[2] = 'tst';
+sql = 'INSERT INTO foo (ed, listint, bar) VALUES ($1, $2, $3) RETURNING Id;';-
+pgsql2.query(sql, orderingMatters, function(res, code, affected, lastOid) {
+	Ape.log(sql);
+	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
+	if (code < 0 ) {
+		Ape.log(this.errorString());
+	} else {
+		Ape.log(res);
+	}
+});
 
 Ape.log("<<< =====================================\n");

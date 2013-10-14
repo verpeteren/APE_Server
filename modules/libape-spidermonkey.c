@@ -583,7 +583,7 @@ static json_item *jsobj_to_ape_json(JSContext *cx, JSObject *json_obj)
 	json_item *ape_json = NULL;
 	jsval propname;
 
-	/* TODO Fixme : If array has no contigious values, they cannot be retrived, use JS_NewPropertyIterator, JS_NextProperty */
+	/* TODO Fixme : If array has no contigious values, they cannot be retrived, use JS_Enumerate (NewPropertyIterator could mix up the order), JS_NextProperty */
 
 	if (JS_IsArrayObject(cx, json_obj) == JS_TRUE) {
 		isarray = 1;
@@ -2369,7 +2369,7 @@ APE_JS_NATIVE(apepostgresql_sm_query)
 				if (JS_GetPropertyById(cx, params, idp, &value)) {
 					svalue = JS_ValueToString(cx, value);
 					*val = JS_EncodeString(cx, svalue);
-					printf("%d %s %d\n", __LINE__, *val, idp);
+					//printf("%d %s %d\n", __LINE__, *val, idp);
 					*len = strlen(*val);
 					len--;
 					val--;
