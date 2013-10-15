@@ -2145,6 +2145,77 @@ static JSFunctionSpec apemysql_funcs_static[] = {
 #endif
 
 #ifdef _USE_POSTGRESQL
+/**
+ * PostgreSQL connection established callback.
+ * <p>This callback is called when the connection to the postgreSQL database has been established.</p>
+ *
+ * @name Ape.PostgreSQL.onConnect
+ * @event
+ * @public
+ *
+ * @example
+ * Ape.PostgreSQL.onConnect = function(){
+ * 	var status = pgsql.status();
+ * 	for (var k in status) {
+ * 		Ape.log('\t' + k + ':\t' + status[k]);
+ * 	 }
+ * 	Ape.log('Connection successfull');
+ * }
+ *
+ * Ape.PostgreSQL.onError = function(){
+ * 	Ape.log('Could not connect to PostgreSql!');
+ * 	Ape.log(this.errorString());
+ * 	var status = pgsql.status();
+ * 	for (var k in status) {
+ * 		Ape.log('\t' + k + ':\t' + status[k]);
+ * 	 }
+ * }
+ *
+ * var pgsql1 = new Ape.PostgreSQL('hostaddr=10.0.0.25 dbname=apedevdb user=apedev password=vedepa port=5432');
+ *
+ * @see Ape.PostgreSQL
+ * @see Ape.PostgreSQL.status
+ * @see Ape.PostgreSQL.onError
+ */
+
+
+/**
+ * PostgreSQL connection error callback.
+ * <p>This callback is called when a connection to PosgreSQL cannot be established.</p>
+ *
+ * @name Ape.PostgreSQL.onError
+ * @event
+ * @public
+ *
+ * @param {integer} errorNo Currently fixed to -1
+ *
+ * @example
+ * Ape.PostgreSQL.onConnect = function(){
+ * 	var status = pgsql.status();
+ * 	for (var k in status) {
+ * 		Ape.log('\t' + k + ':\t' + status[k]);
+ * 	 }
+ * 	Ape.log('Connection successfull');
+ * }
+ *
+ * Ape.PostgreSQL.onError = function(){
+ * 	Ape.log('Could not connect to PostgreSql!');
+ * 	Ape.log(this.errorString());
+ * 	var status = pgsql.status();
+ * 	for (var k in status) {
+ * 		Ape.log('\t' + k + ':\t' + status[k]);
+ * 	 }
+ * }
+ *
+ * var pgsql1 = new Ape.PostgreSQL('hostaddr=10.0.0.25 dbname=apedevdb user=apedev password=vedepa port=5432');
+ *
+ * @see Ape.PostgreSQL
+ * @see Ape.PostgreSQL.onConnect
+ * @see Ape.PostgreSQL.status
+ * @see Ape.PostgreSQL.errorString
+ *
+ * @fires error
+ */
 static void postgresql_query_success(struct _ape_postgresql_data *myhandle, int code)
 {
 	int nRows, nFields, row, field, affected;
@@ -2324,27 +2395,131 @@ static struct _ape_postgresql_queue *apepostgresql_push_queue(struct _ape_postgr
 
 /**
  * Execute a postgresql query.
+ * The returned results are casted into the correct javascript types if the oid is a simple bool, timestamp, a number or void.
+ *
  *
  * @name Ape.PostgresSQL.query
  * @function
  * @public
  *
- * @param {string} sql The SQL Command or statement
- * @param {function} fn callback function
- * @param {Array} fn.res An array of objects if the query was a 'SELECT'
- * @param {integer} fn.errorNo if an error occured the errorNo != 0
+ * @param {string}		sql			The SQL Command or statement
+ * @param {Array}		params		An array op positional parameters. There in no need to escape or quote these.
+ * 									If parameters are provided, the sql maybe only one statement (see postgresql documentation)
+ * @param {function}	fn			Callback function
+ * @param {Array}		fn.res 		An array of record objects if the query retured this
+ * @param {integer}		fn.code		return code, (0 on success)
+ * @param {integer} 	fn.affected	The total number of affected and returned records
+ * @param {intege}		lastOid		Oid
  * @returns {void}
  *
  * @example
- * sql.query('SELECT * FROM table', function(res, errorNo) {
- * 	if (errorNo) Ape.log('Request error : ' + errorNo + ' : ' + this.errorString());
- * 	else {
- * 		Ape.log('Fetching ' + res.length);
- * 		for(var i = 0; i < res.length; i++) {
- * 			Ape.log(res[i].title);//res[i].<column name>
- * 		});
+	pgsql.query('SELECT pg_tables.* FROM pg_tables pg_tables', null, function(res, code, affected, lastOid) {
+		Ape.log(res);
+		Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
+});
+@example
+//Cool things with postgresql > 9.1
+ * var sqls = ['CREATE TABLE IF NOT EXISTS foo (' + '\n' +
+ * 					' id SERIAL PRIMARY KEY,' + '\n' +
+ * 					' ed INTEGER,' + '\n' +
+ * 					' t TIMESTAMP DEFAULT now(),' +'\n' +
+ * 					' bar VARCHAR(32), ' +'\n' +
+ * 					' listint integer[]' + '\n' +
+ * 					') WITH OIDS ;',
+ * 	'INSERT INTO foo (ed, bar) VALUES (1, \'he?\');',										//this leaves you in the dark,
+ * 	'INSERT INTO foo (ed, bar) VALUES (2, \'dump\') RETURNING Ed;',							//this returns a useless column
+ * 	'INSERT INTO foo (ed, bar) VALUES (3, \'bump\') RETURNING t;',							//this returns a useless column
+ * 	'INSERT INTO foo (ed, bar) VALUES (4, \'cool\') RETURNING Id;',							//this returns the id column
+ * 	'INSERT INTO foo (ed, bar) VALUES (5, \'cooler\') RETURNING foo;',						//this returns the whole record, including the default values)
+ * 	'INSERT INTO foo (ed, bar) VALUES (6, \'cooler\') RETURNING *;',						//this returns the whole record, including the default values)
+ * 	'INSERT INTO foo (ed, bar) VALUES (7, \'boring\'); SELECT currval(\'foo_id_seq\');', 	//you need a primary key, and it takes 2 reads. Note: affected paramenter is 2 in this case!
+ * 	'INSERT INTO foo (ED, BAR, listint) VALUES (8, \'COOL\', \'{1, 1 ,2, 3, 5, 8, 13}\');'	//oh yes you can use array's
+ * 	];
+ * sqls.each(function(sql, i) {
+ * 	pgsql2.query(sql, null,  function(res, code, affected, lastOid) {
+ * 		Ape.log(sql);
+ * 		Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
+ * 		if (code < 0 ) {
+ * 			Ape.log(this.errorString());
+ * 		} else {
+ * 			Ape.log(res);
+ * 		}
+ * 	});
+ * });
+ * @example
+ * //Cool things with hstore
+ * var dummyBook = {'author': "John Do", 'pages': 123,'category': 'Comics'};
+ * var sqls = ['CREATE TABLE products (' + '\n' +
+ * 			'	 id serial PRIMARY KEY,' + '\n' +
+ * 			'	name varchar,' + '\n' +
+ * 			'	attributes hstore' + '\n' +
+ * 			');' ,
+ * 	'INSERT INTO products (name, attributes) VALUES (\'Geek Love: A Novel\', \'author    => "Katherine Dunn",  pages     => 368,  category  => fiction\' );',
+ * 	'SELECT name, attributes->\'device\' as device FROM products WHERE attributes->\'pages\' > \'300\'',
+ * 	//Even cooler things if you are using postgresq 9.2
+ * 	'SELECT attributes->author::hstore::json FROM products WHERE attributes->\'pages\' > \'300\';'
+ * 	'INSERT INTO products (name, attributes) VALUES (\'Blablabla\', \'' + JSON.stringify(dummyBook) + '\'::json::hstore);',
+ * 	];
+ * sqls.each(function(sql, i) {
+ * 	pgsql2.query(sql, null,  function(res, code, affected, lastOid) {
+ * 		Ape.log(sql);
+ * 		Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
+ * 		if (code < 0 ) {
+ * 			Ape.log(this.errorString());
+ * 		} else {
+ * 			Ape.log(res);
+ * 		}
+ * 	});
+ * });
+ * @example
+ * // using parameters
+ * var sql4 = 'INSERT INTO foo (ed, bar) VALUES ($1, $2);';
+ * pgsql2.query(sql4, [10, 'Beatnuts` No escapin\' this!'], function(res, code, affected, lastOid) {
+ * 	Ape.log(sql4);
+ * 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
+ * 	if (code < 0 ) {
+ * 		Ape.log(this.errorString());
+ * 	} else {
+ * 		Ape.log(res);
  * 	}
  * });
+ * createList = function() {
+ * 	return '{666, 668}';
+ * }
+ *
+ * var orderingMatters = [];
+ * orderingMatters.length = 3;
+ * orderingMatters[0] = 11;
+ * orderingMatters[1] = createList();
+ * orderingMatters[2] = 'tst';
+ * var sql5 = 'INSERT INTO foo (ed, listint, bar) VALUES ($1, $2, $3) RETURNING Id;';-
+ * pgsql2.query(sql5, orderingMatters, function(res, code, affected, lastOid) {
+ * 	Ape.log(sql5);
+ * 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
+ * 	if (code < 0 ) {
+ * 		Ape.log(this.errorString());
+ * 	} else {
+ * 		//When Id is empty check postgresql bug report 8524.
+ *		//not working in v9.3.1 yet :-(
+ * 		Ape.log(res);
+ * 	}
+ * });
+ * var sql6 = 'SELECT name, attributes->\'device\' as device FROM products WHERE attributes->\'pages\' > $1';-
+ * pgsql2.query(sql6, [200], function(res, code, affected, lastOid) {
+ * 	Ape.log(sql6);
+ * 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
+ * 	if (code < 0 ) {
+ * 		Ape.log(this.errorString());
+ * 	} else {
+ * 		Ape.log(res);
+ * 	}
+ * });
+ *
+ * @see Ape.PostgreSQL
+ * @see Ape.PostgreSQL.onConnect
+ * @see Ape.PostgreSQL.errorString
+ * @see Ape.PostgreSQL.onError
+ * @see Ape.PostgreSQL.status
  */
 APE_JS_NATIVE(apepostgresql_sm_query)
 //{
@@ -2422,6 +2597,18 @@ APE_JS_NATIVE(apepostgresql_sm_query)
  *
  * @example
  * Ape.log(sql.onError());
+ *
+ * @example
+  var pgsql2 = new Ape.PostgreSQL('hostaddr=10.0.0.25 dbname=apedevdb user=apedev password=vedepa port=5432');
+ * pgsql2.query('SELECT syntaxerror FROM nonexistingtable', null, function(res, code, affected, lastOid) {
+ * 	if (code != 0) {
+ *		Ape.log(this.errorString());
+ * 	}
+ * });
+ *
+ * @see Ape.PostgreSQL
+ * @see Ape.PostgreSQL.onError
+ * @see Ape.PostgreSQL.query
  */
 APE_JS_NATIVE(apepostgresql_sm_errorstring)
 //{
@@ -2438,19 +2625,37 @@ APE_JS_NATIVE(apepostgresql_sm_errorstring)
 }
 
 /**
- * Get an object with various status information about the postgresql connection
+ * Get an object with various status information about the postgresql connection.
+ * The properties of the object are currently: "server_version", "server_encoding", "client_encoding", "is_superuser", "session_authorization", "DateStyle", "TimeZone", "integer_datetimes", "server_version", "server_encoding", "client_encoding".
  *
  * @name Ape.PostgreSQL.status
  * @function
  * @public
  *
  * @returns {object} A javascript object with the actual values
- *:
+ *
  * @example
- * var status = pgsql.status();
- * for (var k in status) {
- * 	Ape.log('\t' + k + ':\t' + status[k]);
+ * Ape.PostgreSQL.onConnect = function(){
+ * 	var status = pgsql.status();
+ * 	for (var k in status) {
+ * 		Ape.log('\t' + k + ':\t' + status[k]);
+ * 	 }
+ * 	Ape.log('Connection successfull');
  * }
+ *
+ * Ape.PostgreSQL.onError = function(){
+ * 	Ape.log('Could not connect to PostgreSql!');
+ * 	Ape.log(this.errorString());
+ * 	var status = pgsql.status();
+ * 	for (var k in status) {
+ * 		Ape.log('\t' + k + ':\t' + status[k]);
+ * 	 }
+ * }
+ *
+ * var pgsql1 = new Ape.PostgreSQL('hostaddr=10.0.0.25 dbname=apedevdb user=apedev password=vedepa port=5432');
+ *
+ * @see Ape.PostgreSQL
+ * @see Ape.PostgreSQL.onError
  *
  */
 APE_JS_NATIVE(apepostgresql_sm_status)
@@ -5576,21 +5781,30 @@ static void apepostgresql_finalize(JSContext *cx, JSObject *jspostgresql)
  * <p>If parameters is a string, that it should be a 'keyword1=value1 keyword2=value2'</p>
  * <p>If parameters is a object, it should be a {'keyword1: 'value1', 'keyword2': 'value2'}</p>
  * <p>Please refer to the <a href="http://www.postgresql.org/docs/current/static/libpq-connect.html#LIBPQ-PARAMKEYWORDS">postgreSQL documentation</i> for valid parameters.</p>
- * <p>It is preferred to use the hostaddr parameter with a resolved ip address, to avoid the blocking Unix api getHostByName. The parameter host can be supplied as well, as postgresql might use this for authentication.</p>
+ * <p>It is preferred to use the hostaddr parameter with a resolved ip address, to avoid the blocking Unix api 'getHostByName'. The parameter host can be supplied as well, as postgresql might use this for authentication.</p>
  *
  * @returns {Ape.PostgreSQL} returns an object on success
  *
  * @example
- * //Database connection
- * @Ape.PostgreSQL.onConnect = function(){
- * 	Ape.log('Connection successfull');
- * }
- *
- * Ape.PostgreSQL.onError = function(errorNo){
- * 	Ape.log('Could not connect to PostgreSql: error = ' + errorNo);
- * }
- *
- * var sql = new Ape.PostgreSQL("hostaddr=10.0.0.25 dbname=apedevdb user=apedev password=vedepa port=5432", Ape.PostgreSQL.onConnect, Ape.PostgreSQL.onError);
+ * ape.PostgreSQL.onConnect = function() {
+ *		var status = pgsql.status();
+ *		for (var k in status) {
+ *			Ape.log('\t' + k + ':\t' + status[k]);
+ *		 }
+ *		Ape.log('Connection successfull');
+ *	}
+ *	Ape.PostgreSQL.onError = function() {
+ *		Ape.log('Could not connect to PostgreSql!');
+ *		Ape.log(this.errorString());
+ *		var status = pgsql.status();
+ *		for (var k in status) {
+ *			Ape.log('\t' + k + ':\t' + status[k]);
+ *		 }
+ *	}
+ *	//Connect via connection string
+ * var psql1 = new Ape.PostgreSQL("hostaddr=10.0.0.25 dbname=apedevdb user=apedev password=vedepa port=5432");
+ * //Connect via an object
+ * var pgsql2 = new Ape.PostgreSQL({'hostaddr': '10.0.0.25', 'dbname': 'apedevdb', 'user': 'apedev', 'password': 'vedepa', 'port': '5432'});
  *
  * @see Ape.os.resolveHostByName
  */

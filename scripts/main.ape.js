@@ -22,7 +22,7 @@ Ape.addEvent('init', function() {
 		//include('utils/checkTool.js');
 
 		//This file is used to test features of APE. Especially meant for development of APE Features
-		include('test/_tests.js');
+		//include('test/_tests.js');
 
 
 	} catch (e) {
