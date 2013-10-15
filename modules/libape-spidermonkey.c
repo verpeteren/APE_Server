@@ -2182,16 +2182,39 @@ static void postgresql_query_success(struct _ape_postgresql_data *myhandle, int 
 						for (field = 0; field < nFields; field++) {
 							ckeyword = PQfname(res, field); //todo speedup might be possible by caching this
 							datatype = PQftype(res, field);
-							//if (PQgetisnull(res, row, field) ==0 ) {
-								//value = JSVAL_NULL;
-							//} else {
+							if (PQgetisnull(res, row, field) == 1 ) {
+								value = JSVAL_NULL;
+							} else {
+								cvalue = PQgetvalue(res, row, field);
+								//printf("%d, %d %s\n", __LINE__, datatype, cvalue);
 								switch( datatype) {
-									//TODO: better mapping postgresql data types to JSAPI DATA TYPES
-									default:	cvalue = PQgetvalue(res, row, field);
-												value = STRING_TO_JSVAL(JS_NewStringCopyZ(myhandle->cx, cvalue));
+									//todo: make a even better mapping to postgresql data types to JSAPI DATA TYPES: this relies on the settings in /usr/include/postgresql/catalog/pg_type.h
+									case 16: //bool
+											value = (strcmp(cvalue, "t" ) == 0 ) ? JSVAL_TRUE : JSVAL_FALSE;
+											break;
+									case 2278://void
+											value = JSVAL_VOID;
+									case 20: case 21: case 23: case 26://int
+									case 700: case 701: case 1700://digits
+											JS_NewNumberValue(myhandle->cx, (double) atof(cvalue), &value);
+											break;
+									//case 702: case 703: case 704: case 1082: case 1083: case 1114: case 1184: case 1186: case 1266://time
+									case 1114:
+										{
+											int year, month, day, hour, min, sec, f, found;
+											found = sscanf(cvalue, "%4d-%2d-%2d %2d:%2d:%2d.%6d", &year, &month, &day, &hour, &min, &sec, &f );
+											if (7 == found) {
+												JSObject *dateObj = JS_NewDateObject(myhandle->cx, year, month, day, hour, min, sec);
+												value = OBJECT_TO_JSVAL(dateObj);
 												break;
+											}//else ft
+										}
+									case 17: case 18: case 19: case 25: case 142: case 143: case 194:
+									default:	
+											value = STRING_TO_JSVAL(JS_NewStringCopyZ(myhandle->cx, cvalue));
+											break;
 								}
-							//}
+							}
 							JS_GetArrayLength(myhandle->cx, resultArray, &l);
 							JS_SetProperty(myhandle->cx, record, xstrdup(ckeyword), &value); //hmm, what if postgresql columns do not have ascii chars, ecma does not allow that...?
 							JS_RemoveObjectRoot(myhandle->cx, &record);
@@ -2234,18 +2257,17 @@ static void postgresql_query_success(struct _ape_postgresql_data *myhandle, int 
 	JS_CallFunctionValue(myhandle->cx, myhandle->jspostgresql, queue->callback, 4, params, &rval);
 	statement = (char *) queue->statement;
 	JS_free(myhandle->cx, statement);
-	/*fixme: memory leak
 	if (queue->nParams != 0 ) {
 	 	int i;
 	 	char **val;
-		val = (char **) queue->paramValues;
+		val = (char **) queue->paramValues + queue->nParams - 1;
 		for (i = 0; i < queue->nParams; i++) {
-			JS_free(myhandle->cx, val);
-			val++;
+			JS_free(myhandle->cx, *val);
+			val--;
 		}
 		free((int *) queue->paramLengths);
 		free((char **) queue->paramValues);
-	}*/
+	}
 	free(queue);
 	apepostgresql_shift_queue(myhandle);
 }
@@ -2574,10 +2596,6 @@ static JSFunctionSpec apepostgresql_funcs[] = {
 	JS_FS_END
 };
 
-static JSFunctionSpec apepostgresql_funcs_static[] = {
-	//JS_FS("escape", apepostgresql_escape, 1, 0),
-	JS_FS_END
-};
 #endif
 
 static JSFunctionSpec cmdresponse_funcs[] = {
@@ -5922,7 +5940,7 @@ static void ape_sm_define_ape(ape_sm_compiled *asc, JSContext *gcx, acetables *g
 	jsmysql = JS_InitClass(asc->cx, obj, NULL, &mysql_class, ape_sm_mysql_constructor, 2, NULL, NULL, NULL, apemysql_funcs_static);
 	#endif
 	#ifdef _USE_POSTGRESQL
-	jspostgresql = JS_InitClass(asc->cx, obj, NULL, &postgresql_class, ape_sm_postgresql_constructor, 2, NULL, NULL, NULL, apepostgresql_funcs_static);
+	jspostgresql = JS_InitClass(asc->cx, obj, NULL, &postgresql_class, ape_sm_postgresql_constructor, 2, NULL, NULL, NULL, NULL);
 	#endif
 	#if 0
 	JS_InitClass(asc->cx, obj, NULL, &raw_class, ape_sm_raw_constructor, 1, NULL, NULL, NULL, NULL); /* Not used */

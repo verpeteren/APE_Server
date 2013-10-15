@@ -19,11 +19,12 @@ Ape.PostgreSQL.onError = function(){
 Ape.log(' =====================================>>> \n Connection string test\n' );
 var pgsql1 = new Ape.PostgreSQL('hostaddr=10.0.0.25 dbname=apedevdb user=apedev password=vedepa port=5432');
 Ape.log(pgsql1);
-pgsql1.query('SELECT pg_tables.* FROM pg_tables pg_tables', null, function(res, code, affected, lastOid) {
+	pgsql1.query('SELECT pg_tables.* FROM pg_tables pg_tables', null, function(res, code, affected, lastOid) {
 	Ape.log(res);
 	Ape.log("code: " + code + " affected:" + affected + " lastOid:" + lastOid );
 });
 delete pgsql1;
+
 
 Ape.log(' =====================================>>> \n Connection object test\n' );
 var pgsql2 = new Ape.PostgreSQL({'hostaddr': '10.0.0.25', 'dbname': 'apedevdb', 'user': 'apedev', 'password': 'vedepa', 'port': '5432'});
